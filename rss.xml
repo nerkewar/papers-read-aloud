@@ -34,7 +34,6 @@
     <itunes:explicit>No</itunes:explicit>
     <podcast:locked owner="sables-probe-0i@icloud.com">no</podcast:locked>
     <podcast:medium>podcast</podcast:medium>
-
     <item>
         <title>Counterfactual Edits for Generative Evaluation</title>
         <guid isPermaLink="false">https://github.com/nerkewar/papers-read-aloud/tree/master/episodes/2303.01555</guid>
@@ -52,8 +51,6 @@
         <itunes:season>1</itunes:season>
         <podcast:episode>4</podcast:episode>
     </item>
-
-
     <item>
       <title>LayerDiffusion: Layered Controlled Image Editing with Diffusion Models</title>
       <guid isPermaLink="false">https://github.com/nerkewar/papers-read-aloud/tree/master/episodes/2305.18676</guid>
@@ -71,7 +68,6 @@
       <itunes:season>1</itunes:season>
       <podcast:episode>3</podcast:episode>
     </item>
-    
     <item>
       <title>StyleDrop: Text-to-Image Generation in Any Style</title>
       <guid isPermaLink="false">https://github.com/nerkewar/papers-read-aloud/tree/master/episodes/2306.00983</guid>
@@ -89,7 +85,6 @@
       <itunes:season>1</itunes:season>
       <podcast:episode>2</podcast:episode>
     </item>
-
     <item>
       <title>RISE: Randomized Input Sampling for Explanation of Black-box Models</title>
       <guid isPermaLink="false">https://github.com/nerkewar/papers-read-aloud/tree/master/episodes/1806.07421</guid>
