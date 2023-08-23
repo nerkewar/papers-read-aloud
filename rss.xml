@@ -36,6 +36,25 @@
     <podcast:medium>podcast</podcast:medium>
 
     <item>
+        <title>Counterfactual Edits for Generative Evaluation</title>
+        <guid isPermaLink="false">https://github.com/nerkewar/papers-read-aloud/tree/master/episodes/2303.01555</guid>
+        <description>
+        <![CDATA[<p><br></p>]]>
+        </description>
+        <pubDate>Wed, 23 Aug 2023 03:58:09 +0000</pubDate>
+        <enclosure
+        url="https://github.com/nerkewar/papers-read-aloud/raw/master/episodes/2303.01555/audio.mp3" type="audio/mpeg" />
+        <itunes:author>nerkewar</itunes:author>
+        <itunes:explicit>No</itunes:explicit>
+        <itunes:episodeType>Full</itunes:episodeType>
+        <itunes:episode>4</itunes:episode>
+        <itunes:keywords></itunes:keywords>
+        <itunes:season>1</itunes:season>
+        <podcast:episode>4</podcast:episode>
+    </item>
+
+
+    <item>
       <title>LayerDiffusion: Layered Controlled Image Editing with Diffusion Models</title>
       <guid isPermaLink="false">https://github.com/nerkewar/papers-read-aloud/tree/master/episodes/2305.18676</guid>
       <description>

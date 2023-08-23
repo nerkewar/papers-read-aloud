@@ -1,0 +1,200 @@
+Counterfactual Edits for Generative Evaluation.
+
+Abstract.
+
+Evaluation of generative models has been an underrepresented field despite the surge of generative architectures. Most recent models are evaluated upon rather obsolete metrics which suffer from robustness issues, while being unable to assess more aspects of visual quality, such as compositionality and logic of synthesis. At the same time, the explainability of generative models remains a limited, though important, research direction with several current attempts requiring access to the inner functionalities of generative models. Contrary to prior literature, we view generative models as a black box, and we propose a framework for the evaluation and explanation of synthesized results based on concepts instead of pixels. Our framework exploits knowledge-based counterfactual edits that underline which objects or attributes should be inserted, removed, or replaced from generated images to approach their ground truth conditioning. Moreover, global explanations produced by accumulating local edits can also reveal what concepts a model cannot generate in total. The application of our framework on various models designed for the challenging tasks of Story Visualization and Scene Synthesis verifies the power of our approach in the model-agnostic setting.
+
+I.
+
+\copyrightyear.
+
+2023.
+\copyrightclauseCopyright for this paper by its authors. Use permitted under Creative Commons License Attribution 4.0 International (CC BY 4.0).
+
+\conference.
+
+In A. Martin, K. Hinkelmann, H.-G. Fill, A. Gerber, D. Lenat, R. Stolle, F. van Harmelen (Eds.), Proceedings of the AAAI 2023 Spring Symposium on Challenges Requiring the Combination of Machine Learning and Knowledge Engineering (AAAI-MAKE 2023), Hyatt Regency, San Francisco Airport, California, USA, March 27-29, 2023. 1]Maria Lymperaiou[orcid=0000-0001-9442-4186, ]\cormark[1] 1]Giorgos Filandrianos[]\cormark[1] 1]Konstantinos Thomas[orcid=0000-0002-7489-7776, ]\cormark[1] 1]Giorgos Stamou[orcid= 0000-0003-1210-9874, ]
+
+\cortext.
+
+[1]Corresponding author.
+
+mage Generation \sepCounterfactual Explanations \sepDiffusion Models \sepStory Visualization \sepGenerative Evaluation \sepXAI.
+
+1. Introduction.
+
+Image generation has been one of the most popular deep learning tasks, inspiring many impressive state-of-the-art applications. Even since the introduction of Generative Adversarial Networks (GANs) , which marked one of the first significant breakthroughs in the field, most applications focused on enhancing image quality according to human perception. At the same time, the automatic evaluation of the generated samples remains a long-standing problem as there are no ground truth data to measure against. The valuation of such generative tasks, so far, relies on pixel-level metrics such as Inception Score (IS) , Frechet Inception Distance (FID) , Learned Perceptual Image Patch Similarity (LPIPS) , to provide a quality measure for the generated samples. Consequently, the list of literature evaluated upon those benchmark metrics is long; yet concerns have been raised that their brittleness is leading to inaccurate results. Although recent metrics, such as Clean-FID can resolve some issues regarding visual artifacts, they still cannot address major issues such as the evaluation of complex images, compositionality, logic, and fairness of generation. Moreover, when it comes to conditional generation, we further require a measure of whether objects and attributes mentioned in the conditioning are successfully depicted on the generated samples. Current attempts in conditional synthesis evaluation remain limited while still facing the shortcomings of their unconditional counterparts, on which they are built.
+
+Explainability of generative models is another emerging field, which has currently received way less attention compared to discriminative models. The incorporation of explainable feedback in Generative Adversarial Networks (GANs) has demonstrated a promising research direction , while other works focus on interpreting GAN inner structure. Overfitting in GANs can be tackled by determining the image areas that contributed to classifying a sample as fake/real, thus explaining the discriminator’s decision. This limited literature impedes the development of explainable evaluation for generative models, even though related attempts have gained ground in other AI domains, such as Natural Language Processing.
+
+We argue that resolving generative evaluation challenges calls for a conceptual approach to the evaluation process, diverging from the pixel-level route. Relying on concepts instead of pixels offers the advantage of enhanced interpretability regarding the evaluation process and paves the way for explainable evaluation of generative models. Identifying concepts (objects or attributes) that can or cannot be generated reveals the capabilities and biases of the model at hand, thus driving potential architectural modifications. In this paper, we present the first explainable evaluation technique targeting generative models. Specifically, we utilize counterfactual explanations to frame conditional generative evaluation as the answer to the following question: What concepts need to change in a generated sample X, for it to reach its conditioning c? Conceptual edits guided from external knowledge sources have shown to efficiently indicate the shortest possible path to reach the conditioning concepts. Furthermore, existing works that combine explainability with image generation operate on specific models and demand access to their inner structure (white-box techniques), while our approach only requires generated outputs along with their ground truth conditioning, yet still regarding the generative model as a black-box. We, therefore, contribute to the following:
+
+1. We propose the first conceptual rather than pixel-based generative evaluation framework ([1] https://github.com/geofila/Counterfactual-Edits-for-Generative-Evaluation), suitable for various tasks such as Scene Generation (SG) and Story Visualization (SV).
+
+
+2. Our metrics are explainable by design, illustrating which concepts need to be inserted, deleted, or replaced in the generated images, for them to approach the ground truth conditioning. Those edit operations are applied in a model-agnostic setting, totally trespassing any access to the generative model inner workings.
+
+
+3. Global explanations automatically reveal possible blind spots of generative models, that is concepts that a model is intrinsically incapable of generating.
+
+2. Related work.
+
+Generative Adversarial Networks (GANs)
+
+consist of two neural networks, a generator G(z;theta g) and a discriminator D(x;theta d). G maps random noise z, generated from a prior distribution z∼pz, to the data space. D, on the other hand, maps a sample xi from the same data space to a scalar value pi=D(xi), which represents the probability that the sample was drawn from the real data distribution. In the case of conditional GANs (cGANs) , G is fed not only with random noise z, but also with an additional conditioning vector y, which helps guide the generation of samples from specific sub-regions of the target distribution.
+
+Several image generation cGANs perform well when it comes to generating images with distinct textures and colors. However, they tend to struggle with generating coherent overall object structures and other long-range dependencies, due to the limited nature of convolutional filters. The Self-Attention GAN (SAGAN) was proposed as a solution to this problem; it utilizes a self-attention module in both G and D, as well as modern stabilization techniques such as Spectral Normalization of weights , while it leverages the two-timescale update rule to impose different learning rates for G and D.
+
+Diffusion models.
+
+are breaking new ground in the field of conditional image generation and are becoming the state-of-the-art in that area. These models work by adding noise to an image and then learning to reconstruct it. In the past year, there have been several exciting developments in the field of diffusion-based image synthesis. Stable Diffusion allows for high-quality image synthesis even under resource constraints by applying the diffusion process in the latent space of autoencoders instead of at the pixel level in the image space. DALL-E2 builds upon the success of its predecessor by incorporating text-conditioned image embeddings learned from CLIP as input to a diffusion model that acts as the decoder. The resulting images are photorealistic and accurate representations of the input text, and it also allows for language-guided manipulation of a source image. The work of Imagen leverages large pre-trained language models, such as T5 , for language encoding and conducts image synthesis using the diffusion process. DreamBooth takes Imagen a step further by allowing for context-aware image synthesis, given a text description of the desired context. This allows for the generation of various visual subjects while maintaining high image synthesis quality.
+
+Conditional image synthesis.
+
+has come a long way since the early days of text-conditioned image generation. First attempts produced images lacking in detail and quality. StackGAN was the first model to significantly improve the quality of generated images using a multi-stage adversarial training process, followed by StackGAN++ which further enhanced generation results. AttnGAN employed attention mechanisms to generate fine-grained details in images based on individual words in the input text. SEGAN took this a step further by only focusing attention on relevant keywords in the input text. DM-GAN improved the quality of generated images by addressing fuzzy areas.
+
+StoryGAN is a generative model that synthesizes images based on sequential input (Story Visualization), using an RNN structure to encode the input text and provide context information to the generator. The generator is trained adversarially against two discriminators: the image discriminator, which evaluates image quality and text-image relevance, and the story discriminator, which ensures consistency across images given the entire story context. Recent work has focused on improving the baseline StoryGAN model and exploring alternative story encoding methods, such as using Transformer architectures.
+
+Generative evaluation.
+
+Despite the rapid advancements in image synthesis, generative evaluation is falling behind due to outdated evaluation practices , mainly followed for benchmarking reasons, ignoring the problems recognized in recent works. Explainability in generative modeling can deliver interesting insights, though current efforts either remain model-specific or require discovering interpretable latent directions , which is a non-trivial task. Our method serves both the evaluation and explainability of generative models under a single framework and is capable of being adapted to any generative model - even the ones serving sequential image generation - as it focuses solely on input and output concept sets.
+
+Counterfactual explanations.
+
+Contemporary AI research moves towards explaining a neural network’s train of'thought’, thus eXplainable AI (XAI) becomes a field of increasing interest. Counterfactual explanations provide alternative realities based on minimal input modifications, hence revealing reasoning paths. Generative models are a straightforward approach when visual alternatives are explored. Any alteration should be feasible with respect to original data distribution, an observation that adds constraints in alternative inputs. Minimum alterations can be decided either by interfering with the black-box nature of neural networks , or not. We chose to follow the black-box route, using counterfactual explanations to uncover clues on the reasoning processes of generative models.
+
+3. Conceptual edits as counterfactual explanations.
+
+Our overall approach is heavily inspired by , which explores the fundamental question of counterfactual reasoning: “What is the minimal change that has to occur in order for an image I to be classified as X instead of Y?”, where X and Y are predicted categories of a pre-defined image classifier F. In our case, F is not necessary, since we by default place all generated concepts s in a set S, and all ground truth concepts t in a set T. Counterfactual explanations are capable of addressing the aforementioned question, providing the minimum number of conceptual edits to achieve the S -> T transition for all s in S, t in T.
+
+Concept distances instruct the shortest path that connects two specific concepts. Concept hierarchies are employed, deterministically defining the transition cost between concepts. We explore both the option to use external hierarchical knowledge such as WordNet , mapping extracted concepts to synsets, or alternatively handcraft specific hierarchies to allow highly controlled semantic distance definition. In both cases, we denote as d(s,t) the distance between concepts s and t. There are three available concept edit operations to realize transitions:
+
+1. Replacement (R) es -> t(S): A concept s in S is replaced with a concept t not in S.
+2. Deletion (D) es−(S): A concept s in S is deleted from S.
+3. Insertion (I) es+(S): A concept s in S is inserted in S.
+
+Each edit operation inherits the concept distances imposed by the selected hierarchy. Therefore, R operation considers the path between s and t so that min(d(s,t)) is ensured. As in , d also ensures actionability of edits, allowing semantically meaningful transitions (for example'food’ ->'pasta’), while prohibiting meaningless ones (for example'food’ ->'sky’).
+D and I operations regard the root node of the hierarchy as t and s respectively; in the case of WordNet, entity.n.01 serves as the root.
+Concept Set Edit Distance (CSED) D(S -> T) is obtained by aggregating all possible minimum cost edit operations so that S -> T is finally achieved:
+
+4. Method.
+
+The heart of our method consists of a pre-trained black-box generative model M which receives a semantic description c (in natural language or in symbolic format) as conditioning and produces an image I corresponding to c. We then use off-the-self automatic methods such as object detection, semantic segmentation, and others, in order to extract all the concepts depicted in the generated images I and append them in the generated (or source) concept set S. Similarly, concepts extracted from c contribute to the real (or target) concept set T. The format of c defines the concept extraction technique that is followed, ranging from linguistic concept extraction, if c is a textual sentence, to simple preprocessing, if c is already in a set format. Ultimately, we aspire to answer the following: "What are the minimal required changes in order to traverse from S to T?" The outline of our method is presented in Figure 1. 4.1 Generative evaluation.
+
+The counterfactual backbone described in Section 3 highlights our process for generative evaluation, which we employ on two difficult tasks of the generative literature: Story Visualization (SV) and Scene Generation (SG).
+
+Story Visualization (SV)
+
+targets the sequential creation of images I1,I2,...,IL that correspond, one-to-one, to a given sequential conditioning c1,c2,...,cL of a total length L. The generated images need not only to remain faithful to their conditioning, but to also maintain serial consistency. We therefore define the two desiderata applicable to SV:
+
+1. Faithfulness: objects and attributes mentioned in ck should also appear in frame Ik, for any story frame k, where 1≤k≤L.
+2. Consistency: objects or attributes appearing in frame Ik cannot disappear or change in later frames Ik+1,...,IL, for any story frame k, where 1≤k&lt;L.
+
+Since well-defined semantics are tied to counterfactual explanations , we regard CLEVR-SV as the ideal dataset to demonstrate our approach, as it provides a set of concepts C: shape (cube, sphere, cylinder), size (small, large), material (rubber, metal) and one of 8 colors (blue, cyan, brown, yellow, red, green, purple, gray). Each CLEVR-SV object contains |C|=4 concepts that describe its shape, size, material and color. We handcraft a simple hierarchy to group object semantics to generic concept classes, demonstrating the following inclusion relationships:
+
+CLEVR-SV contains stories of length L=4, with the k-th frame strictly containing k objects. Any of the three available edit operations can be relevant per frame: D of a concept, when a generated frame contains more objects than its ground truth match; I of a concept in the opposite case; R equals to a D followed by an I, and can be applied on frames with proper number of objects when semantics differ. In the default case, we assign equal costs of 1 for all semantics, as well as for D and I operations (R cost is the sum of D and I costs).
+
+To measure story faithfulness we propose the Story Loss (SL) metric, which sums up the per-frame Concept Set Edit Distance (CSEDk) for k=1,2,...,L frames of the story. Generated CLEVR-SV semantics for shape, size, material and color for the k-th frame form the concepts set Sk, while the semantics of the conditioning form Tk, with their CSEDk denoted as D(Sk,Tk). Thus, the cost for the transition {S1,S2,S3,S4} -> {T1,T2,T3,T4} corresponding to the minimum cost R D I edits needed to transform the semantics of the generated sequence {I1,I2,I3,I4} to the semantics of its conditioning {c1,c2,c3,c4} can be expressed as:
+
+By scaling up the calculation of SL for a dataset containing N stories, we obtain the Global Story Loss (GSL) metric:
+
+As for story consistency, we propose the metric of Consistency Loss (CL): the frame.
+Ik is compared with Ik−1,k=2,..,L frames of the generated sequences to capture changes of semantics. A challenging aspect of CL is that there does not exist a ground truth concept set. However, since it is known by task definition that the k-th frame contains k objects, and the cardinality |C| of dataset concepts is predefined (|C|=4 in the case of CLEVR-SV), we can assume that every previous frame constitutes the'ground truth’ corresponding to the concept set T. Commencing from the k=1 frame, we expect the cardinality of T to be equal with |C|⋅k=|C|. Any discrepancy results in a penalty pk=|T|−|C|⋅k=CLk for k=1. For later frames, we define as S the concept set corresponding to the k-th frame, and as T the'ground truth’ set comprised of the k-1 frame concepts. Mathematically, CL can be written as:
+
+In the ideal case, when the k-th frame contains k objects with C semantics, we expect that pk=1=0 and CLk&gt;1=|C|⋅(k−1). By extending CL to N stories, Global Consistency Loss (GSL) evaluates the consistency capabilities of a generative model M in total:
+
+Average values can be obtained for both local (SL/CL) and global (GSL/GCL) metrics:
+
+For consistency, instead of exporting an average value over ∑CLk, it is more meaningful to count how many times the pk=1=0,CLk&gt;1=|C|⋅(k−1) requirement was not respected, averaged for L=k frames:
+
+SL and CL are by nature explanaible, as they do not only provide a measure of quality but also reveal the Sk -> Tk edit paths. Those paths serve as local counterfactual explanations, highlighting the erroneously generated semantics for this particular story, either in terms of faithfulness or consistency. Overall, higher SL/GSL and CL/GCL values denote lower conceptual generation quality.
+GSL/GCL edit paths correspond to global counterfactual explanations: rule extraction techniques provide frequent patterns, summarizing the behavior of M under investigation. Frequent GSL edit paths in fact contain common misconceptions, that is conditioning concepts that M cannot easily generate. Similarly, GCL edit paths reveal frequent inconsistency patterns, showcasing concepts that arbitrarily change within the story frames. Hence, by researching the question "What has to minimally change in order to transit from S to T?", we eventually answer a more generic one: "Which concepts cannot be generated or preserved by M?"
+
+Scene Generation (SG)
+
+aims to synthesize a visual scene I based on a conditioning c. The synthesized image comprises multiple objects which interact with each other. Scene objects are also accompanied by attributes. The given conditioning c is more complex compared to conditionings provided for SV, since the concepts to be generated are numerous and not predefined; this yields a concept set C of unknown but comparatively large cardinality.
+
+COCO dataset provides the ideal setting for evaluating generative faithfulness for SG, providing textual captions c that can serve as conditioning. We focus our endeavors on state-of-the-art open source diffusion models from Huggingface ([2] https://huggingface.co/models?pipelinetag=text-to-image&amp;sort=downloads), and specifically on Stable Diffusion v1.4 &amp; v2 and Protogen x3.4 &amp; 5.8 (details in Appendix). These models produce realistic images - an important aspect of the concept extraction (object detection) stage. We omit older SG architectures due to their inferior visual quality and their reliance on scene graphs and layouts for ensuring proper composition.
+
+In the concept extraction stage, YOLO-v8 and YOLOS object detectors are leveraged to construct the generated concept set S. Since c is in textual format, spaCy is used to extract ground truth concepts from captions that form the target concept set T. The semantically complex nature of concept distances related to COCO concepts requires a rich knowledge scheme, such as WordNet. For example, if c refers to concepts such as'food’ or'animal’, a diffusion model may generate more refined'food’ or'animal’ instances, for example,'pasta’ and'dog’ respectively. The object detectors will then return these refined classes, inducing some noise in the transformation process. Hierarchical knowledge can eliminate such issues: even though T={food,animal}≠S={pasta,dog}, the two sets are semantically equivalent if we consider the hierarchical relationships pasta−isA−food and dog−isA−animal provided by mapping S and T concepts on WordNet synsets. In this case, no S -> T transformation needs to be performed. Therefore, the usage of external knowledge allows more conceptually accurate transitions. Moreover, WordNet provides concept distances necessary for edit operations, precisely reflecting semantic relationships between concepts. Then, CSED can be applied to provide the total cost of the S -> T transformations.
+
+5. Experiments.
+
+5.1 Story Visualization.
+
+Since all semantics and D, I edit operations have an equal cost, we assign d=1 for all semantics, as well as for D, I. For example, deleting a color yields an edit cost of 1. Alternatively, by substituting a color with another one induces an edit cost of 2, equal to deleting the source color and then inserting the target color. The same logic applies to shape, size and material of objects.
+
+Metric results.
+
+over the best variants of selected SV models are presented in Table 1. Existing metrics (FID, Clean-FID, LPIPS, SSIM) are provided for comparison.
+
+In general, we observe an agreement between pixel-level and conceptual metrics. This is somehow expected, since the concept extraction stage depends on pixel-level image quality, with better generated objects or semantics being more easily identifiable. Nevertheless, conceptual evaluation offers more explainable insights: percentages of losses per concept (Material, Size, Shape, Color) are provided, highlighting strengths and shortcomings of investigated models over different semantics. For example, higher Shape loss for all models (&gt; 50%), indicates that they synthesize objects of ambiguous shapes in most cases. On the other hand, relatively lower Size losses reveal the models’ capability to generate objects having the right size.
+
+We further investigate our findings by focusing on the best performing SV model of according to the conceptual metrics reported in Table 1. Specifically, in Table 2 we present results of per frame GSL, GCL and losses per concept (Material, Size, Shape, Color).
+
+Local explanations.
+
+The transparency of the proposed SL/CL metrics is verified by obtaining local explanations for. Specifically, we examine edit paths for the sequences of Figure 2: the 4 leftmost images (Figure 1(a)) correspond to the ground truth sequence, while the 4 rightmost images (Figure 1(b)) denote the generated frames. Consequently, S contains concepts of 1(b) and T contains concepts of 1(a). As presented in Table 3 (details in Appendix), a standard R operation for all frames is observed, suggesting transforming the material of the small brown sphere from'rubber’ to'metallic’ in order to match the ground truth. In the last frame, one more R operation is added, suggesting also transforming the shape of the new object from'sphere’ to'cylinder’. The cost for each R operation equals to 2, equivalent for one step to remove the wrong semantic and one more step to add the right semantic. However, this cost weight can be tuned appropriately, if needed. SL for this story equals to 10, as a summary of all operation costs per frame. By observing for CL, we realize that the correct number of objects is added in every consequent frame, so that CLk&gt;1=|C|⋅(k−1),|C|=4 is maintained: starting from CL1=pk=1=0 for the k=1 frame, we verify that only one object is added, respecting that frame number should be equal to the number of objects present in it. CL2=4 is expected since the object added in the k=2 frame contains 4 semantics. Any number lower or greater than that would indicate an abnormal behavior: CLk&gt;1&lt;|C|⋅(k−1) marks one (or more) missing objects, while CLk&gt;1&gt;|C|⋅(k−1) indicates one (or more) extra object generated. The desired pattern repeats for the 3rd and 4th frames. Through this analysis, the shortcomings of concerning this specific image are revealed, producing a local explanation: The semantic Material needs to be examined more, as in all story frames of this example the small brown sphere is generated with the attribute'rubber’ instead of'metallic’. In order to obtain insights regarding the model’s synthesis capabilities of discrete semantics, global metrics and explanations need to be derived.
+
+Global explanations.
+
+In order to assess our model’s shortcomings in total, we measure GSL for all test images of CLEVR-SV. Therefore, we can obtain a measure of the model’s inability to capture certain -discrete- semantics, either per frame or in total (Table 1). We observe that in later frames, Material loss decreases, even though we would expect that the problem gets harder and harder as more objects are added, resulting in higher losses. This expected pattern is followed by Size loss and Color loss, while no certain pattern can be extracted from Shape loss. The high Shape loss imposes the need for attention mechanisms within the used GANs , so that long-range relationships can be captured. We can also attribute the rapid rise of Size and Color losses to consistency deficiencies within the story sequence.
+
+GSL can also reveal patterns in the form of rules for the whole test set. We leverage the apriori algorithm to extract frequent semantic combinations and rules. The 4 most common semantic edits are provided in Table 4, together with each rule’s frequency (support). The concept category (as occurring from equation 2), antecedent support (source semantic frequency), and consequent support (target semantic frequency) are also provided.
+
+We observe that Material is the most common concept misconception, with both'rubber’ and'metallic’ semantics being frequently confused. Shape is the second most prominent misconception, with'cylinder’ appearing in the generated frames more often compared to the'cylinder’ occurrence in the conditioning;'cube’ and'sphere’ shapes are sacrificed for'cylinder’ to be generated. Since the rule support is not significantly high, with 26.77% being the maximum value, we can safely assume that the SV model of is not heavily biased towards certain semantics. Nevertheless, we spot some tendency to generate the wrong material and shape, an observation that can be valuable for architectural improvements of the model.
+
+5.2 Scene Generation.
+
+We select the first 10K samples from COCO to reduce the inference time needed to extract visual concepts using YOLO-v8 and YOLOS object detectors. COCO provides 5 descriptive sentences per sample, which are paraphrases of each other. For this reason, we only regard the 1st out of the 5 sentences as the conditioning c. We follow two separate processes for SG: actual generation conditioned on c and retrieval of caption-image pairs based on captions similar to c.
+
+Conditional generation on COCO captions.
+
+For the generation experiment, we employ pre-trained diffusion models without any further tuning, as mentioned in 4.1, which are all tested on the same conditionings c. Each of the four diffusion models required about 15 hours to synthesize 10K images using 2 T4 GPUs, therefore around 60 hours in total.
+
+Retrieval of COCO-related captions.
+
+In order to obtain considerably more images conditioned on COCO-related queries without having to spend the time and resources to run many more thousand iterations of the diffusion model, we utilized a Stable Diffusion search engine (Lexica.art) ([3] https://lexica.art/). The exact process we used was the following: we use c of the first 10K COCO samples as the'query’ caption. The search engine returned, for each of the 10k captions, 10 images that have been already generated by online communities with the closest input queries to our captions. This technique supplied us with 100.000 more Stable Diffusion images, accompanied by their input queries. We then compare results between web-retrieved and generated images.
+
+Object detection.
+
+We select a default threshold of Td=0.6 for detection; objects detected with confidence≥0.6 are added in the generated concept set S. This threshold is experimentally defined to maintain a valid trade-off between false positive and false negative objects; in fact, since no ground truth exists, even defining false predictions is untractable without human inspection. However, our approach can provide relevant hints regarding the probability of false detection, as a higher number of D operations may infer higher false positive rates (irrelevant objects being detected, if Td is too low), while more I operations can be correlated with higher false negative rates (relevant objects not being detected, if Td is too strict).
+
+Metric results.
+
+For comparative reasons we present results for Td=0.5, 0.6, 0.7 in Tables 5 (YOLO-v8) &amp; 6 (YOLOS) for generated images, and in Table 7 for web images, reporting object extraction from both object detectors. Instances colored in blue denote the lowest scores, which are more desirable, while the highest scores are highlighted with red. We present number of edits ( I, D, R), as well as the total cost for each I, D, R operation for all images. Mean CSED is reported as an overall metric regardless of which operation was performed more often.
+
+Regarding the selected threshold Td, our initial hypothesis is proven to be correct: more I operations are realized for higher threshold Td=0.7, suggesting that objects from the conditioning where not detected, while fewer I were performed for Td=0.5. Similarly, there are more D operations for the lowest Td=0.5, as spurious objects can be detected more easily. Additionally, more R operations are needed for lower thresholds, which is also expected, since more objects are extracted and added to the S set. As for object detectors, results using YOLO-v8 are very homogeneous, indicating that the models under investigation follow a rather predictable behavior irrespectively of Td. Protogen 5.8 consistently yields the lowest mean CSED score, denoting cheaper transitions for all thresholds. This observation slightly changes for Td=0.7 and YOLOS object detector (Table 6), for which, surprisingly, protogen 5.8 produces the more expensive transitions. By comparing Tables 5 &amp; 6, YOLOS results in higher mean CSED, less I operations, significantly more expensive D operations (even though the number of D operations is not substantially larger), as well as more and expensive R operations. Therefore, we can safely assume that YOLOS is comparatively more sensitive in detecting more objects, which may induce some noise in the detection process. All these results will become more interpretable should we delve into the explanations accompanying the evaluation. The patterns arising from evaluating generated images are also supported in Table 7 findings, verifying the threshold hypothesis, as well as the increased sensitivity of YOLOS. Nevertheless, web-retrieved images seem to miss objects mentioned in the query, as proven by the large number of I and R operations.
+
+Local explanations.
+
+provide edit paths based on the I, D, R operations realized for a specific generated image. For this reason, we employ a scene depicted in Figure 3. According to YOLO-v8 with the default threshold Td=0.6, the generated concepts are S={’car’,'car’,'traffic light’,'car’,'stop sign’}, and ground truth concepts are T={’light’,'buildings’}. The edit operations of total minimum cost 59.00 for this S -> T transformation are:
+
+I: { }
+
+D: {’car’,'car’,'car’}
+
+R: {’traffic light’ ->'light’,'stop sign’ ->'buildings’}
+
+When using YOLOS, the generated concepts are S={’car’,'traffic light’,'car’,'stop sign’,'traffic light’,'car’,'traffic light’,'traffic light’,'traffic light’,'traffic light’,'traffic light’,'traffic light’,'car’,'traffic light’,'traffic light’,'traffic light’,'traffic light’,'traffic light’,'car’,'traffic light’,'traffic light’,'traffic light’,'traffic light’,'car’,'car’,'traffic light’,'traffic light’}, and the ground truth ones are T={’light’,'buildings’}. By visually inspecting the image, YOLOS clearly overestimates the actual objects present, inducing noise in the generated concept set S. Nevertheless, our evaluation strategy successfully captures this overestimation, by suggesting the deletion of multiple concepts. Specifically, we obtain the following transformations of total cost 104.04:
+
+I: { }
+
+D: {’car’,'traffic light’,'car’,'traffic light’,'car’,'traffic light’,'traffic light’,'traffic light’,'traffic light’,'traffic light’,'traffic light’,'car’,'traffic light’,'traffic light’,'traffic light’,'traffic light’,'car’,'traffic light’,'traffic light’,'traffic light’,'traffic light’,'car’,'car’,'traffic light’,'traffic light’}
+
+R: {’stop sign’ ->'light’,'traffic light’ ->'buildings’}
+
+Global explanations.
+
+for all images are presented in Table 8 for I, D edits and Table 9 for R edits. Results only involve YOLO-v8 extracted concepts, as YOLOS results in an overwhelming number of detected instances. Top-3 results are demonstrated, that is the 3 most frequent insertion, deletions and replacements. I and D refers to concepts inserted or deleted respectively, while Freq I, D denotes how many times a specific concepts was inserted or deleted within all images. I, D support indicates the frequency a specific edit happens among all I, D edits respectively. As for R, support denotes the frequency of a transformation rule among all produced rules.
+
+We can observe an obvious agreement between models; I edits include'street’,'tennis’ and'table’ concepts. It seems that the selected M cannot efficiently generate the I concepts, or generated concepts are of low visual quality, so that their detection is not feasible with Td=0.5, 0.6, 0.7.
+D edits mainly contain'person’,'sheep’,'car’,'umbrella’,'donut’ concepts, indicating some bias towards generating spurious instances of those concept categories. Finally, R edits refer to transforming'person’ to'people’,'man’ or'woman’. Since'person’ is a YOLO category incorporating both genders, such transformations are somehow expected.
+
+6. Conclusion.
+
+Conceptual approaches in generative evaluation is an underexplored field, which can provide some novel insights regarding model quality and explainability of results. In our work, we propose a knowledge-driven explainable evaluation framework that suggests which concepts should be added, removed, or replaced for a generated image to approach its conditioning. Results on competitive tasks such as Story Visualization and Scene Generation illustrate the merits of such an approach, highlighting concepts that models cannot generate, or model biases towards generating excessive numbers of specific concept categories. As future work, we plan to expand our approach to other models and tasks and also incorporate alternative knowledge sources to examine how the produced edit paths conceptually deviate from the current ones.
+
+Acknowledgements.
+
+The research work was supported by the Hellenic Foundation for Research and Innovation (HFRI) under the 3rd Call for HFRI PhD Fellowships (Fellowship Number 5537).
