@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:atom="http://www.w3.org/2005/Atom"
+  xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:podcast="https://podcastindex.org/namespace/1.0"
+  xmlns:trackback="http://madskills.com/public/xml/rss/module/trackback/">
+  <channel>
+    <title>Papers Read Aloud</title>
+    <link>https://github.com/nerkewar/papers-read-aloud</link>
+    <language>en</language>
+    <pubDate>Wed, 23 Aug 2023 03:33:38 +0000</pubDate>
+    <lastBuildDate>Wed, 23 Aug 2023 03:33:38 +0000</lastBuildDate>
+    <copyright>Copyright © 2023 nerkewar</copyright>
+    <itunes:author>eclique</itunes:author>
+    <description>
+      Papers Read Aloud is a podcast featuring your papers being read aloud by a machine.
+    </description>
+    <itunes:image
+      href="https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png" />
+      <image>
+        <url>
+            https://github.com/nerkewar/papers-read-aloud
+        </url>
+        <title>Papers Read Aloud</title>
+        <link>https://github.com/nerkewar/papers-read-aloud</link>
+      </image>
+    <itunes:category text="Science"></itunes:category>
+    <itunes:owner>
+      <itunes:name>nerkewar</itunes:name>
+      <itunes:email>sables-probe-0i@icloud.com</itunes:email>
+    </itunes:owner>
+    <itunes:type>episodic</itunes:type>
+    <itunes:keywords />
+    <itunes:complete>No</itunes:complete>
+    <itunes:explicit>No</itunes:explicit>
+    <podcast:locked owner="sables-probe-0i@icloud.com">no</podcast:locked>
+    <podcast:medium>podcast</podcast:medium>  
+    <item>
+      <title>RISE: Randomized Input Sampling for Explanation of Black-box Models</title>
+      <guid isPermaLink="false">https://github.com/nerkewar/papers-read-aloud/tree/master/episodes/1806.07421</guid>
+      <description>
+        <![CDATA[<p><br></p>]]>
+      </description>
+      <pubDate>Wed, 23 Aug 2023 03:33:38 +0000</pubDate>
+      <enclosure
+        url="https://github.com/nerkewar/papers-read-aloud/raw/master/episodes/1806.07421/audio.mp3"
+        length="10508164" type="audio/mpeg" />
+      <itunes:author>nerkewar</itunes:author>
+      <itunes:explicit>No</itunes:explicit>
+      <itunes:episodeType>Full</itunes:episodeType>
+      <itunes:episode>1</itunes:episode>
+      <itunes:keywords></itunes:keywords>
+      <itunes:season>1</itunes:season>
+      <podcast:episode>1</podcast:episode>
+    </item>
+  </channel>
+</rss>
