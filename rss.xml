@@ -12,7 +12,7 @@
     <copyright>Copyright © 2023 nerkewar</copyright>
     <itunes:author>nerkewar</itunes:author>
     <description>
-      Papers Read Aloud is a podcast featuring your papers being read aloud by a machine.
+      Papers Read Aloud is a podcast featuring scientific papers read by a lovely robot.
     </description>
     <itunes:image
       href="https://github.com/nerkewar/papers-read-aloud/raw/master/image.png" />
@@ -33,7 +33,44 @@
     <itunes:complete>No</itunes:complete>
     <itunes:explicit>No</itunes:explicit>
     <podcast:locked owner="sables-probe-0i@icloud.com">no</podcast:locked>
-    <podcast:medium>podcast</podcast:medium>  
+    <podcast:medium>podcast</podcast:medium>
+
+    <item>
+      <title>LayerDiffusion: Layered Controlled Image Editing with Diffusion Models</title>
+      <guid isPermaLink="false">https://github.com/nerkewar/papers-read-aloud/tree/master/episodes/2305.18676</guid>
+      <description>
+      <![CDATA[<p><br></p>]]>
+      </description>
+      <pubDate>Wed, 23 Aug 2023 03:40:05 +0000</pubDate>
+      <enclosure
+      url="https://github.com/nerkewar/papers-read-aloud/raw/master/episodes/2305.18676/audio.mp3" type="audio/mpeg" />
+      <itunes:author>nerkewar</itunes:author>
+      <itunes:explicit>No</itunes:explicit>
+      <itunes:episodeType>Full</itunes:episodeType>
+      <itunes:episode>3</itunes:episode>
+      <itunes:keywords></itunes:keywords>
+      <itunes:season>1</itunes:season>
+      <podcast:episode>3</podcast:episode>
+    </item>
+    
+    <item>
+      <title>StyleDrop: Text-to-Image Generation in Any Style</title>
+      <guid isPermaLink="false">https://github.com/nerkewar/papers-read-aloud/tree/master/episodes/2306.00983</guid>
+      <description>
+      <![CDATA[<p><br></p>]]>
+      </description>
+      <pubDate>Wed, 23 Aug 2023 03:33:30 +0000</pubDate>
+      <enclosure
+      url="https://github.com/nerkewar/papers-read-aloud/raw/master/episodes/2306.00983/audio.mp3" type="audio/mpeg" />
+      <itunes:author>nerkewar</itunes:author>
+      <itunes:explicit>No</itunes:explicit>
+      <itunes:episodeType>Full</itunes:episodeType>
+      <itunes:episode>2</itunes:episode>
+      <itunes:keywords></itunes:keywords>
+      <itunes:season>1</itunes:season>
+      <podcast:episode>2</podcast:episode>
+    </item>
+
     <item>
       <title>RISE: Randomized Input Sampling for Explanation of Black-box Models</title>
       <guid isPermaLink="false">https://github.com/nerkewar/papers-read-aloud/tree/master/episodes/1806.07421</guid>
@@ -51,42 +88,6 @@
       <itunes:keywords></itunes:keywords>
       <itunes:season>1</itunes:season>
       <podcast:episode>1</podcast:episode>
-    </item>
-  
-    <item>
-        <title>StyleDrop: Text-to-Image Generation in Any Style</title>
-        <guid isPermaLink="false">https://github.com/nerkewar/papers-read-aloud/tree/master/episodes/2306.00983</guid>
-        <description>
-        <![CDATA[<p><br></p>]]>
-        </description>
-        <pubDate>Wed, 23 Aug 2023 03:33:30 +0000</pubDate>
-        <enclosure
-        url="https://github.com/nerkewar/papers-read-aloud/raw/master/episodes/2306.00983/audio.mp3" type="audio/mpeg" />
-        <itunes:author>nerkewar</itunes:author>
-        <itunes:explicit>No</itunes:explicit>
-        <itunes:episodeType>Full</itunes:episodeType>
-        <itunes:episode>2</itunes:episode>
-        <itunes:keywords></itunes:keywords>
-        <itunes:season>1</itunes:season>
-        <podcast:episode>2</podcast:episode>
-    </item>
-  
-    <item>
-        <title>LayerDiffusion: Layered Controlled Image Editing with Diffusion Models</title>
-        <guid isPermaLink="false">https://github.com/nerkewar/papers-read-aloud/tree/master/episodes/2305.18676</guid>
-        <description>
-        <![CDATA[<p><br></p>]]>
-        </description>
-        <pubDate>Wed, 23 Aug 2023 03:40:05 +0000</pubDate>
-        <enclosure
-        url="https://github.com/nerkewar/papers-read-aloud/raw/master/episodes/2305.18676/audio.mp3" type="audio/mpeg" />
-        <itunes:author>nerkewar</itunes:author>
-        <itunes:explicit>No</itunes:explicit>
-        <itunes:episodeType>Full</itunes:episodeType>
-        <itunes:episode>3</itunes:episode>
-        <itunes:keywords></itunes:keywords>
-        <itunes:season>1</itunes:season>
-        <podcast:episode>3</podcast:episode>
     </item>
   </channel>
 </rss>
