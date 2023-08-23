@@ -70,5 +70,23 @@
         <itunes:season>1</itunes:season>
         <podcast:episode>2</podcast:episode>
     </item>
+  
+    <item>
+        <title>StyleDrop: Text-to-Image Generation in Any Style</title>
+        <guid isPermaLink="false">https://github.com/nerkewar/papers-read-aloud/tree/master/episodes/2306.00983</guid>
+        <description>
+        <![CDATA[<p><br></p>]]>
+        </description>
+        <pubDate>Wed, 23 Aug 2023 03:14:36 +0000</pubDate>
+        <enclosure
+        url="https://github.com/nerkewar/papers-read-aloud/raw/master/episodes/2306.00983/audio.mp3" type="audio/mpeg" />
+        <itunes:author>nerkewar</itunes:author>
+        <itunes:explicit>No</itunes:explicit>
+        <itunes:episodeType>Full</itunes:episodeType>
+        <itunes:episode>3</itunes:episode>
+        <itunes:keywords></itunes:keywords>
+        <itunes:season>1</itunes:season>
+        <podcast:episode>3</podcast:episode>
+    </item>
   </channel>
 </rss>
