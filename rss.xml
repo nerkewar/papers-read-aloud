@@ -35,6 +35,23 @@
     <podcast:locked owner="sables-probe-0i@icloud.com">no</podcast:locked>
     <podcast:medium>podcast</podcast:medium>
     <item>
+        <title>InstructPix2Pix: Learning to Follow Image Editing Instructions</title>
+        <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2211.09800</guid>
+        <description>
+        <![CDATA[<p>We propose a method for editing images from human instructions: given an input image and a written instruction that tells the model what to do, our model follows these instructions to edit the image. To obtain training data for this problem, we combine the knowledge of two large pretrained models—a language model (GPT-3) and a text-to-image model (Stable Diffusion)—to generate a large dataset of image editing examples. Our conditional diffusion model, InstructPix2Pix, is trained on our generated data, and generalizes to real images and user-written instructions at inference time. Since it performs edits in the forward pass and does not require per-example fine-tuning or inversion, our model edits images quickly, in a matter of seconds. We show compelling editing results for a diverse collection of input images and written instructions.</p>]]>
+        </description>
+        <pubDate>Wed, 23 Aug 2023 05:09:00 +0000</pubDate>
+        <enclosure
+        url="https://nerkewar.github.io/papers-read-aloud/episodes/2211.09800/audio.mp3" type="audio/mpeg" />
+        <itunes:author>nerkewar</itunes:author>
+        <itunes:explicit>No</itunes:explicit>
+        <itunes:episodeType>Full</itunes:episodeType>
+        <itunes:episode>6</itunes:episode>
+        <itunes:keywords></itunes:keywords>
+        <itunes:season>1</itunes:season>
+        <podcast:episode>6</podcast:episode>
+    </item>
+    <item>
         <title>GLAZE: Protecting Artists from Style Mimicry by Text-to-Image Models</title>
         <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2302.04222</guid>
         <description>
