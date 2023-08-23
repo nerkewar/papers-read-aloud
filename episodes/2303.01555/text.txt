@@ -6,20 +6,13 @@ Evaluation of generative models has been an underrepresented field despite the s
 
 I.
 
-\copyrightyear.
+2023 Copyright for this paper by its authors. Use permitted under Creative Commons License Attribution 4.0 International (CC BY 4.0).
 
-2023.
-\copyrightclauseCopyright for this paper by its authors. Use permitted under Creative Commons License Attribution 4.0 International (CC BY 4.0).
-
-\conference.
-
-In A. Martin, K. Hinkelmann, H.-G. Fill, A. Gerber, D. Lenat, R. Stolle, F. van Harmelen (Eds.), Proceedings of the AAAI 2023 Spring Symposium on Challenges Requiring the Combination of Machine Learning and Knowledge Engineering (AAAI-MAKE 2023), Hyatt Regency, San Francisco Airport, California, USA, March 27-29, 2023. 1]Maria Lymperaiou[orcid=0000-0001-9442-4186, ]\cormark[1] 1]Giorgos Filandrianos[]\cormark[1] 1]Konstantinos Thomas[orcid=0000-0002-7489-7776, ]\cormark[1] 1]Giorgos Stamou[orcid= 0000-0003-1210-9874, ]
-
-\cortext.
+In A. Martin, K. Hinkelmann, H.-G. Fill, A. Gerber, D. Lenat, R. Stolle, F. van Harmelen (Eds.), Proceedings of the AAAI 2023 Spring Symposium on Challenges Requiring the Combination of Machine Learning and Knowledge Engineering (AAAI-MAKE 2023), Hyatt Regency, San Francisco Airport, California, USA, March 27-29, 2023. 1]Maria Lymperaiou[orcid=0000-0001-9442-4186, ][1] 1]Giorgos Filandrianos[][1] 1]Konstantinos Thomas[orcid=0000-0002-7489-7776, ][1] 1]Giorgos Stamou[orcid= 0000-0003-1210-9874, ]
 
 [1]Corresponding author.
 
-mage Generation \sepCounterfactual Explanations \sepDiffusion Models \sepStory Visualization \sepGenerative Evaluation \sepXAI.
+mage Generation Counterfactual Explanations Diffusion Models Story Visualization Generative Evaluation XAI.
 
 1. Introduction.
 
