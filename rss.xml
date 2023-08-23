@@ -35,6 +35,23 @@
     <podcast:locked owner="sables-probe-0i@icloud.com">no</podcast:locked>
     <podcast:medium>podcast</podcast:medium>
     <item>
+        <title>GLAZE: Protecting Artists from Style Mimicry by Text-to-Image Models</title>
+        <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2302.04222</guid>
+        <description>
+        <![CDATA[<p>Recent text-to-image diffusion models such as MidJourney and Stable Diffusion threaten to displace many in the professional artist community. In particular, models can learn to mimic the artistic style of specific artists after “fine-tuning” on samples of their art. In this paper, we describe the design, implementation and evaluation of Glaze, a tool that enables artists to apply “style cloaks” to their art before sharing online. These cloaks apply barely perceptible perturbations to images, and when used as training data, mislead generative models that try to mimic a specific artist. In coordination with the professional artist community, we deploy user studies to more than 1000 artists, assessing their views of AI art, as well as the efficacy of our tool, its usability and tolerability of perturbations, and robustness across different scenarios and against adaptive countermeasures. Both surveyed artists and empirical CLIP-based scores show that even at low perturbation levels (p=0.05),<br>Glaze is highly successful at disrupting mimicry under normal conditions (&gt;92%) and against adaptive countermeasures (&gt;85%).</p>]]>
+        </description>
+        <pubDate>Wed, 23 Aug 2023 04:44:08 +0000</pubDate>
+        <enclosure
+        url="https://nerkewar.github.io/papers-read-aloud/episodes/2302.04222/audio.mp3" type="audio/mpeg" />
+        <itunes:author>nerkewar</itunes:author>
+        <itunes:explicit>No</itunes:explicit>
+        <itunes:episodeType>Full</itunes:episodeType>
+        <itunes:episode>5</itunes:episode>
+        <itunes:keywords></itunes:keywords>
+        <itunes:season>1</itunes:season>
+        <podcast:episode>5</podcast:episode>
+    </item>
+    <item>
         <title>Counterfactual Edits for Generative Evaluation</title>
         <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2303.01555</guid>
         <description>
