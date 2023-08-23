@@ -15,7 +15,7 @@
       Papers Read Aloud is a podcast featuring your papers being read aloud by a machine.
     </description>
     <itunes:image
-      href="https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png" />
+      href="https://github.com/nerkewar/papers-read-aloud/raw/master/image.png" />
       <image>
         <url>
             https://github.com/nerkewar/papers-read-aloud
@@ -51,6 +51,24 @@
       <itunes:keywords></itunes:keywords>
       <itunes:season>1</itunes:season>
       <podcast:episode>1</podcast:episode>
+    </item>
+  
+    <item>
+        <title>StyleDrop: Text-to-Image Generation in Any Style</title>
+        <guid isPermaLink="false">https://github.com/nerkewar/papers-read-aloud/tree/master/episodes/2306.00983</guid>
+        <description>
+        <![CDATA[<p><br></p>]]>
+        </description>
+        <pubDate>Wed, 23 Aug 2023 03:05:30 +0000</pubDate>
+        <enclosure
+        url="https://github.com/nerkewar/papers-read-aloud/raw/master/episodes/2306.00983/audio.mp3" type="audio/mpeg" />
+        <itunes:author>nerkewar</itunes:author>
+        <itunes:explicit>No</itunes:explicit>
+        <itunes:episodeType>Full</itunes:episodeType>
+        <itunes:episode>2</itunes:episode>
+        <itunes:keywords></itunes:keywords>
+        <itunes:season>1</itunes:season>
+        <podcast:episode>2</podcast:episode>
     </item>
   </channel>
 </rss>
