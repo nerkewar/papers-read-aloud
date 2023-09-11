@@ -35,6 +35,23 @@
     <podcast:locked owner="sables-probe-0i@icloud.com">no</podcast:locked>
     <podcast:medium>podcast</podcast:medium>
     <item>
+        <title>Abstract</title>
+        <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2307.05977</guid>
+        <description>
+        <![CDATA[<p>Large-scale image generation models, with impressive quality made possible by the vast amount of data available on the Internet, raise social concerns that these models may generate harmful or copyrighted content. The biases and harmfulness arise throughout the entire training process and are hard to completely remove, which have become significant hurdles to the safe deployment of these models. In this paper, we propose a method called sdd to prevent problematic content generation in text-to-image diffusion models. We self-distill the diffusion model to guide the noise estimate conditioned on the target removal concept to match the unconditional one. Compared to the previous methods, our method eliminates a much greater proportion of harmful content from the generated images without degrading the overall image quality. Furthermore, our method allows the removal of multiple concepts at once, whereas previous works are limited to removing a single concept at a time. Code is available at https://github.com/nannullna/safe-diffusion.</p>]]>
+        </description>
+        <pubDate>Sun, 10 Sep 2023 20:03:24 +0000</pubDate>
+        <enclosure
+        url="https://nerkewar.github.io/papers-read-aloud/episodes/2307.05977/audio.mp3" type="audio/mpeg" />
+        <itunes:author>nerkewar</itunes:author>
+        <itunes:explicit>No</itunes:explicit>
+        <itunes:episodeType>Full</itunes:episodeType>
+        <itunes:episode>7</itunes:episode>
+        <itunes:keywords></itunes:keywords>
+        <itunes:season>1</itunes:season>
+        <podcast:episode>7</podcast:episode>
+    </item>
+    <item>
         <title>InstructPix2Pix: Learning to Follow Image Editing Instructions</title>
         <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2211.09800</guid>
         <description>

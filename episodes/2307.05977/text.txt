@@ -1,0 +1,150 @@
+Abstract.
+
+Large-scale image generation models, with impressive quality made possible by the vast amount of data available on the Internet, raise social concerns that these models may generate harmful or copyrighted content. The biases and harmfulness arise throughout the entire training process and are hard to completely remove, which have become significant hurdles to the safe deployment of these models. In this paper, we propose a method called sdd to prevent problematic content generation in text-to-image diffusion models. We self-distill the diffusion model to guide the noise estimate conditioned on the target removal concept to match the unconditional one. Compared to the previous methods, our method eliminates a much greater proportion of harmful content from the generated images without degrading the overall image quality. Furthermore, our method allows the removal of multiple concepts at once, whereas previous works are limited to removing a single concept at a time. Code is available at https://github.com/nannullna/safe-diffusion.
+
+Caution: The text contains explicit and discriminatory expressions and illustrations.
+
+Towards Safe Self-Distillation of Internet-Scale Text-to-Image Diffusion Models.
+
+Towards Safe Self-Distillation of.
+Internet-Scale Text-to-Image Diffusion Models.
+
+equal*
+
+Sanghyun Kimkaist Seohyeon Jungkaist Balhae Kimkaist Moonseok Choikaist Jinwoo Shinkaist Juho Leekaist,aitrics.
+
+kaistKim Jaechul Graduate School of AI, KAIST, Daejeon, Republic of Korea aitricsAITRICS, Seoul, Republic of Korea.
+
+Sanghyun K Juho L.
+
+Machine Learning, ICML.
+
+1. Introduction.
+
+Text-to-image generation models have recently made significant advances, especially with publicly available Stable Diffusion (sd)models, possessing expressive power to generate detailed images and vast conceptual knowledge learned from the Internet. Furthermore, these advancements have reached a wider audience than other AI fields, due to the simple interface that allows users to generate desired images with just a text prompt and view their results immediately.
+
+However, training these models requires immense computing resources and Internet-scale datasets (for example, LAION-5B ). Harmful and copyrighted images are inevitably included in training data, causing the model to mimic people’s “bad” behaviors. This issue has been pointed out by many researchers and serves as obstacle preventing the deployment of trained models, demanding an urgent yet safe solution. Although various attempts have been made to mitigate the issue, they are often insufficient and fall short of addressing the problem. For instance, it is practically impossible to eliminate harmful content completely, and filtering out more images also removes non-harmful images from the training data , possibly resulting in the model’s worse performance. On the other hand, naïvely fine-tuning a model or manipulating noise estimates would lead to catastrophic forgetting and degradation of image quality.
+
+In this paper, we propose Safe self-Distillation Diffusion (sdd), a simple yet effective safeguarding algorithm for text-to-image generative models that ensures the removal of problematic concepts with little effect on the original model. We fine-tune the model through self-distillation  for the noise estimate conditioned on the target removal concept to follow the unconditional one. Of note, to mitigate catastrophic forgetting, we employ an exponential moving average (ema) teacher. We compare the quality and safety of generated images with existing detoxification methods, particularly when it comes to multi-concept erasing tasks.
+
+2. Backgrounds.
+
+2.1 Latent Diffusion Models.
+
+Diffusion models , a class of latent variable models, learn the true data distribution by building a Markov chain of latent variables. Given a sample x0∼pdata(x):=q(x) and a noise schedule {beta t}Tt=1, the forward process gradually injects a series of Gaussian noises to the sample until it nearly follows standard Gaussian distribution as follows:
+
+Such process is then followed by the reverse process parameterized by theta , where the model learns to denoise and reconstruct the original image from a pure Gaussian noise p(xT)=N(0,I) as follows:
+
+One can optimize the parameter theta by minimizing the negative of the variational lower-bound, and simplifies the objective to learn a noise estimator ϵtheta :
+
+where ϵ∼N(0,I) and t∼U({1,…,T}).
+
+To facilitate efficient learning, Latent Diffusion Models (ldms)leverages the diffusion process within the latent space rather than in the pixel space utilizing a pre-trained autoencoder. By mapping the input data x into a latent space with the encoder E, z=E(x), an ldm is trained to predict the added noise in the latent space, which tends to capture more essential and semantically meaningful features than the ones in the pixel space. In the context of text-to-image models, the model additionally takes the embedding of a text prompt cp paired with an image x as an input. Further, to enhance the quality of text conditioning, Classifier-Free Guidance (cfg)randomly replaces cp with the embedding of an empty string c0 during training. Combining all the above, the loss function can be reformulated as follows:
+
+2.2 Stable Diffusion and the Potential Dangers.
+
+Stable Diffusion (sd)  is a specific type of ldm developed by Stability AI, known for its user-friendly nature, memory efficiency, and convenience. sd operates as a text-to-image generative model, taking textual input and generating corresponding images. Despite its remarkable achievements, researchers have raised certain concerns regarding the potential harm caused by contents created with sd, suggesting that it has the potential to exhibit biases or generate inappropriate toxic content like other large-scale models that rely on Internet-crawled unrefined data.
+
+For example, discovered that sd has the propensity to amplify stereotypes and that mitigating such an issue is not straightforward. also showed that the latent space of sd exhibits stereotypical representations among different demographic groups. similarly identified biases in sd models, specifically identifying a correlation between the word Japan and nudity. Moreover, they discovered that certain prompts used in sd models can generate inappropriate images, including those depicting violence or harm. Despite these findings, research focusing on the safety of diffusion models has been relatively scarce.
+
+2.3 Existing Works on Detoxifying Diffusion Models.
+
+Recently, there have been emerging attempts to develop safe diffusion models  or ablate certain concepts or objects . Denote the text embedding of the prompt and the target concept to remove by cp and cs, respectively. Inference-time techniques  manipulate the vanilla cfg term ~ϵcfg by subtracting the negative guidance as follows:
+
+where sg and mu control the guidance scale. Safe Latent Diffusion (sld)and Semantic Guidance (sega)differ in designing the element-wise scaling term mu. sld utilizes the difference between two noise estimates of cp and cs with guidance scale ss, DSLD:=ss(ϵtheta (zt,cs,t)−ϵtheta (zt,cp,t)):
+
+where lambda is a pre-defined threshold. Similarly, sega defines DSEGA:=ss(ϵtheta (zt,cs,t)−ϵtheta (zt,t)) and.
+
+where eta lambda (x) is the top-lambda percentile value of x. Such element-wise clipping helps to avoid interference from other concepts. Meanwhile, Erasing Stable Diffusion (esd)fine-tunes a student model theta to follow the erased guidance of the unmodified teacher model theta ⋆ even if the target concept cs is given as follows:
+
+where zt is generated by the student theta for every iteration.
+
+3. Methods.
+
+3.1 Safe Self-Distillation of Diffusion Models.
+
+To prevent the generative model from generating images containing inappropriate concepts, we employed a fine-tuning approach like esd, but our objective is to minimize the following loss function:
+
+where ϵtheta (zt,cs,t) denotes the noise estimate conditioned on the target concept cs and ϵtheta (zt,t) the unconditional one. The term sg indicates that we apply the stop-gradient operation to block the gradient, which has been widely used in self-supervised learning . We only fine-tune the cross-attention layers as recent image editing techniques  utilize those layers.
+
+In addition, we adopt a teacher model theta ⋆ whose weights are updated from the fine-tuned student model theta with exponential moving average (ema)during training. For each iteration, an intermediate latent zt is also sampled from the ema model theta ⋆ with cfg conditioned on the concept cs, thus requiring no training data. This is in line with recent findings that leverage the vast knowledge of pre-trained language models to self-diagnose and fix their own biases. The overall update scheme ensures that the noise estimate for the target concept follows the unconditional one, even if the concept is given based on the knowledge of the model. So, we name it Safe self-Distillation Diffusion (sdd). Figure 1 illustrates this overall process.
+
+3.2 Comparison to Existing Methods.
+
+Despite its similarity to esd, sdd brings several advantages over esd. Firstly, esd has designed its loss function to enable the noise estimate for sensitive conditions to mimic the manipulated noise with cfg to the opposite direction of cs. In other words, the generative model is expected to refrain from generating sensitive images but may become heavily influenced by the cfg at the same time. We also empirically showed that subtracting the negative guidance term (sd+neg in Tables 2 and 1) is not sufficient enough to eliminate the target concept. In contrast, our approach is capable of functioning regardless of the quality of cfg and the cfg guidance scale sg.
+
+Input: parameter theta , sampler (for example, DDIM) sampler, target concepts {c1,…,cK}, text encoder CLIPtext, number of (iterations N, sampling steps T), decay rate m, cfg guidance scale sg, learning rate eta 
+
+Output: theta ⋆
+
+theta ⋆←theta , cs=CLIPtext([c1;…;cK])
+
+fori=1 to Ndo.
+
+zT∼N(0,I),t∼U({0,…,T−1})
+
+cp← U({CLIPtext(c1),…,CLIP% text(cK)})
+
+fortau =T to t+1do.
+
+~ϵ←ϵtheta ⋆(ztau ,tau )+sg(ϵtheta ⋆(ztau ,cp,tau )−ϵtheta ⋆(ztau ,tau ))
+
+ztau −1←sampler(ztau ,~ϵ,tau )
+
+endfor.
+
+theta ←theta −eta ∇theta ∥ϵtheta (zt,cs,t)−sg(ϵtheta (zt,t))∥22.
+
+theta ⋆←mtheta ⋆+(1−m)theta 
+
+endfor.
+
+Algorithm 1 sdd with multiple concepts.
+
+Another concurrent work  used the same objective function as our proposed method and showed that minimizing the ℓ2 norm is equivalent to minimizing the Kullback-Leibler (KL) divergence between two distributions: p(x0:T|c∗) and p(x0:T|c). However, unlike our method, they constructed pairs of concepts &lt;c∗,c&gt; (for example, &lt;Grumpy Cat, cat&gt;, &lt;Van Gogh painting, paintings&gt;), where c∗ is the target concept to be removed, and c is the anchor concept to replace c∗. In other words, this method is closer to substituting the target concept with a similar higher-level one rather than removing it, and finding such concept pairs is not straightforward in all scenarios. For example, it is unclear what concept should replace "violence" or "nudity". In contrast, our method simply matches the conditional noise estimate to the unconditional one, thereby requiring less manual work and being more intuitive.
+
+Moreover, the utilization of ema contributes to preventing catastrophic forgetting by allowing the model parameters to be gradually updated. We typically desire that a well-trained sd model, when instructed not to generate inappropriate images, retains a significant amount of information it has already learned without being affected. However, the fine-tuning approach is susceptible to catastrophic forgetting because it modifies the parameters. sdd mitigates this issue by incorporating ema updates to preserve image quality and details more effectively compared to the student model, which has been demonstrated in Appendix C.
+
+3.3 Expansion to Multiple Concepts.
+
+Another advantage of not using cfg is that it allows for easy extension to multiple concepts. Because cfg considers guidance in the opposite direction of inappropriate concepts, using this aggregated noise estimate as a target may result in multiple concepts canceling each other out in the model’s noise space. Consequently, it may not effectively achieve the desired performance. Therefore, not relying on cfg allows for easier extension to address the challenges of multi-concept removal.
+
+Here, we propose a novel fine-tuning technique specifically designed to handle multiple concepts. We make two modifications to Equation 12: (i) we randomly choose a single concept cp from the given concepts to generate zt for every iteration of fine-tuning; (ii) we concatenate all target concepts into a single text prompt cs. The cancellation issue is resolved as we use a single concept for zt. Furthermore, thanks to the non-pooled CLIP  embeddings of sd, cs can successfully detect which harmfulness zt belongs to with cross-attention. Algorithm 1 summarizes our method with multiple target concepts, and we refer readers to §§ B.1 and A for pseudo-code and training details. We use 20 harmful concepts (called I2P concepts) ([1] I2P concepts are “hate, harassment, violence, suffering, humiliation, harm, suicide, sexual, nudity, bodily fluids, blood, obscene gestures, illegal activity, drug use, theft, vandalism, weapons, child abuse, brutality, cruelty.”) proposed by , which is based on OpenAI’s content policy ([2] https://labs.openai.com/policies/content-policy).
+
+4. Experiments.
+
+4.1 Baselines.
+
+We compare the performance of our method with the plain sd and previous methods. sd indicates the original model, and sd + neg indicates that the target concept is provided to c0 instead of an empty string "". In addition, we consider two inference-time methods: sldand sega. For sld, we consider two hyperparameter setups pre-defined in their paper: medium and max. We include sega in our baseline as it also aims to edit images by manipulating noise estimates. For fine-tuning methods, we consider two variants of esd, depending on which parameters are fine-tuned: esd-u (unconditional layers) and esd-x (cross-attention layers). Although the authors used esd-u for nudity removal, our results confirmed that esd-x is much more effective in removing nudity, so we included it in our study. We use a stronger hyperparameter for esd of ss = 3.0, denoted by esd-u-3 and esd-x-3 in the paper.
+
+4.2 Evaluation.
+
+Our performance evaluation is divided into the following two aspects: how well it removes the target concept and whether it has little impact on the remaining concepts. The former is assessed by (i) utilizing pre-trained classifiers, NudeNet  (%nude) and Q16 classifier  (%harm), to evaluate the proportion of nudity images and inappropriate images, respectively, or by (ii) providing generated examples. The latter is measured with images generated from MS-COCO captions by (i) calculating FID  between generated images and the actual COCO images, (ii) assessing how much the generated images deviate from the original model with LPIPS score , and (iii) determining the extent to which the user’s intent and the generated images still align with CLIP score . Please refer to Appendix B for more details.
+
+4.3 NSFW Content Removal.
+
+Table 1 shows the effectiveness of our method for NSFW content removal. We generated a total of 5,000 images with the prompt "&lt;country&gt; body" with top-50 GDP countries (100 images for each country) and reported the proportion of nudity images. sdd removes a greater amount of exposed body parts compared to other methods while maintaining a satisfactory level of image quality. On the other hand, esd still generates nudity images. sd+neg and sldmax are also possible to significantly suppress NSFW content in the case of a single concept removal.
+
+4.4 Artist Concept Removal.
+
+To protect copyright issues, it is crucial to eliminate the style of artists from sd. In this paper, we used artist prompts following. Figure 2 presents generated artworks examining the impact of our method sdd on the other artists when removing one artist’s concept. It is apparent that from the images associated with the concept, located diagonally, the corresponding concept was successfully eliminated, while the images unrelated to the concept were not affected by this self-distillation process. Also, as shown in Figure 3, the ema teacher model maintains the other context information ("artwork"), showing the effectiveness of ema on preserving knowledge. Similarly, in our preliminary experiments, the student model eliminates the target concept at the early training stage, but it easily degrades the image quality, especially when under-specified prompts are given.
+
+4.5 Multi-Concept Removal.
+
+Table 2 presents the performance when removing all 20 concepts of I2P simultaneously, which empirically confirms that our sdd still exhibits superior performance in removing nudity and inappropriate images. Interestingly, in contrast to the moderate performance levels demonstrated by sd+neg, sld, and esd in Table 1, we observe a significant decrease in performance when it comes to simultaneously removing multiple harmful concepts at once. In conclusion, the empirical findings demonstrate that our sdd approach excels in removing nudity and inappropriate content while maintaining the decent image quality.
+
+5. Conclusion.
+
+In this paper, we propose sdd, a method to safeguard text-to-image generative models. We fine-tune it to mimic itself but with editing guided by using text prompts. In this self-distillation process, we employ ema to gradually update the model and mitigate catastrophic forgetting. Importantly, our method can effectively remove multiple concepts, which sets it apart from existing approaches. Through various experiments, we empirically demonstrate the advantages of our method, including fast and stable training, the ability to avoid interference among concepts, and successful safeguarding from inappropriate concepts.
+
+Limitations and societal impacts.
+
+Our method cannot completely remove problematic content and may have a minor impact on image quality, and the problem of catastrophic forgetting exists. However, our method can be used in conjunction with existing pre- or post-processing methods, contributing to the safety of the deployed model. Additionally, since we did not use training data, bias may be present, and we did not conduct prompt tuning, which is beyond the scope of our research. As future work, it is suggested to further investigate and refine this methodology.
+
+Reproducibility.
+
+All experiments are implemented with PyTorch v1.13  and HuggingFace’s Diffusers library .
+
+Acknowledgements.
+
+This work was supported by Institute of Information &amp; communications Technology Planning &amp; Evaluation (IITP) grant funded by the Korea government(MSIT) (No.2019-0-00075, Artificial Intelligence Graduate School Program (KAIST), and No.2022-0-00184, Development and Study of AI Technologies to Inexpensively Conform to Evolving Policy on Ethics) and the National Research Foundation of Korea (NRF) grant funded by the Korea government (MSIT) (No. 2022R1A5A708390812).
