@@ -35,6 +35,40 @@
     <podcast:locked owner="sables-probe-0i@icloud.com">no</podcast:locked>
     <podcast:medium>podcast</podcast:medium>
     <item>
+        <title>Multi-Concept Customization of Text-to-Image Diffusion</title>
+        <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2212.04488</guid>
+        <description>
+        <![CDATA[<p>While generative models produce high-quality images of concepts learned from a large-scale database, a user often wishes to synthesize instantiations of their own concepts (for example, their family, pets, or items). Can we teach a model to quickly acquire a new concept, given a few examples? Furthermore, can we compose multiple new concepts together? We propose Custom Diffusion, an efficient method for augmenting existing text-to-image models. We find that only optimizing a few parameters in the text-to-image conditioning mechanism is sufficiently powerful to represent new concepts while enabling fast tuning (\vbox∼6 minutes). Additionally, we can jointly train for multiple concepts or combine multiple fine-tuned models into one via closed-form constrained optimization. Our fine-tuned model generates variations of multiple, new concepts and seamlessly composes them with existing concepts in novel settings. Our method outperforms several baselines and concurrent works, regarding both qualitative and quantitative evaluations, while being memory and computationally efficient.</p>]]>
+        </description>
+        <pubDate>Mon, 11 Sep 2023 21:48:34 +0000</pubDate>
+        <enclosure
+        url="https://nerkewar.github.io/papers-read-aloud/episodes/2212.04488/audio.mp3" type="audio/mpeg" />
+        <itunes:author>nerkewar</itunes:author>
+        <itunes:explicit>No</itunes:explicit>
+        <itunes:episodeType>Full</itunes:episodeType>
+        <itunes:episode>21</itunes:episode>
+        <itunes:keywords></itunes:keywords>
+        <itunes:season>1</itunes:season>
+        <podcast:episode>21</podcast:episode>
+    </item>
+    <item>
+        <title>ReVersion: Diffusion-Based Relation Inversion from Images</title>
+        <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2303.13495</guid>
+        <description>
+        <![CDATA[<p>Diffusion models gain increasing popularity for their generative capabilities. Recently, there have been surging needs to generate customized images by inverting diffusion models from exemplar images. However, existing inversion methods mainly focus on capturing object appearances. How to invert object relations, another important pillar in the visual world, remains unexplored. In this work, we propose ReVersion for the Relation Inversion task, which aims to learn a specific relation (represented as “relation prompt”) from exemplar images. Specifically, we learn a relation prompt from a frozen pre-trained text-to-image diffusion model. The learned relation prompt can then be applied to generate relation-specific images with new objects, backgrounds, and styles.</p>]]>
+        </description>
+        <pubDate>Mon, 11 Sep 2023 21:48:26 +0000</pubDate>
+        <enclosure
+        url="https://nerkewar.github.io/papers-read-aloud/episodes/2303.13495/audio.mp3" type="audio/mpeg" />
+        <itunes:author>nerkewar</itunes:author>
+        <itunes:explicit>No</itunes:explicit>
+        <itunes:episodeType>Full</itunes:episodeType>
+        <itunes:episode>20</itunes:episode>
+        <itunes:keywords></itunes:keywords>
+        <itunes:season>1</itunes:season>
+        <podcast:episode>20</podcast:episode>
+    </item>
+    <item>
         <title>Designing an Encoder for Fast Personalization of Text-to-Image Models</title>
         <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2302.12228</guid>
         <description>

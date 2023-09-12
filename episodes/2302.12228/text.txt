@@ -1,0 +1,157 @@
+Designing an Encoder for Fast Personalization of Text-to-Image Models.
+
+Abstract.
+
+Text-to-image personalization aims to teach a pre-trained diffusion model to reason about novel, user provided concepts, embedding them into new scenes guided by natural language prompts. However, current personalization approaches struggle with lengthy training times, high storage requirements or loss of identity. To overcome these limitations, we propose an encoder-based domain-tuning approach. Our key insight is that by underfitting on a large set of concepts from a given domain, we can improve generalization and create a model that is more amenable to quickly adding novel concepts from the same domain. Specifically, we employ two components: First, an encoder that takes as an input a single image of a target concept from a given domain, for example a specific face, and learns to map it into a word-embedding representing the concept. Second, a set of regularized weight-offsets for the text-to-image model that learn how to effectively ingest additional concepts. Together, these components are used to guide the learning of unseen concepts, allowing us to personalize a model using only a single image and as few as 5 training steps — accelerating personalization from dozens of minutes to seconds, while preserving quality.
+
+Code and trained encoders will be available at our project page.
+
+††journal: TOG.
+
+1. Introduction.
+
+The ability to personalize large-scale text-to-image models  has revolutionized content creation. By injecting an understanding of a new concept into pre-trained models, a user can leverage it in new prompts, thereby inserting a subject into new scenes, or invoking a unique artistic style with a single word.
+
+However, current personalization methods  are difficult to scale, with each new concept requiring fine-tuning sessions lasting dozens of minutes or even hours on a top-end GPU. Moreover, when tuning the entire model, the resulting checkpoints are typically several GB in size, incurring non-negligible storage and serving costs. Finally, to prevent the model from overfitting spurious image details such as the background, these models typically require painstaking collection of multiple images with varied backgrounds and poses.
+
+We propose to tackle these challenges through a novel domain-tuning approach, where the text-to-image model is taught how to personalize well to new concepts from a given domain. For example, we would like to tune the model on a dataset of cats (the domain), such that it can more easily be personalized to individual, unseen cats (the concepts). Our approach is based on the premise that highly regularized models are well suited to learning some averaged behaviour. We thus propose to concurrently personalize a network on a large collection of concepts from a single domain, while limiting its degrees of freedom. Instead of learning the details of individual concepts, this network then learns a more generalized set of weights that lies close to each of them individually. Our approach is thus similar in spirit to Meta Learning , and specifically the joint-training scenario outlined by.
+
+To implement our approach, we design two components: A restricted set of weights to tune, and an efficient way to invert a large number of concepts. For the weights, we investigate models tuned with prior approaches and propose to modulate the projection matrices in the denoising network’s attention mechanism. Rather than tuning the weights directly, we employ a learned constant followed by a set of fully connected layers to transform it into an offset for the model’s weights. Learning these changes through a network serves to restrict both the rank of the learned offsets and to provide a smoothness prior .
+
+For efficient inversion, we employ an encoder – a neural network tasked with quickly mapping a given concept image into a word embedding that approximately represents it. We draw inspiration from the literature on GAN inversion  and propose an iterative-refinement  scheme. Here, instead of predicting an embedding representation for the concept in a single forward-pass, we couple the encoder to the denoising process and predict a novel embedding for each time step. Moreover, through this iterative approach, the encoder can observe both the target image and the current noisy sample at each step. This allows it to correct for mistakes during the synthesis process.
+
+The encoder and weight offsets are jointly pretrained on a large dataset from a single given domain, such as FFHQ , LSUN Cat , or WikiArt . To learn a new, specific concept at inference time, we fine-tune both components and the diffusion model on a single image portraying the personal concept. Our approach thus serves three goals: (1) a strong initialization to the tuning process for both the model and the word embedding, (2) a means of allowing the network to correct for mistakes during the iterative denoising process, and (3) a domain prior that helps identify the target concept even from a single image. Together, these allow us to tune a model for a specific concept with a single image and as few as 5 training iterations — roughly 11 seconds of training on a single NVIDIA A100 GPU, or ×60−140 faster than previous personalization approaches. Importantly, as tuning now takes a number of steps comparable to the synthesis process, it can be used at inference time to enable one-shot personalization, without requiring a new model for every new identity.
+
+We compare our approach with prior personalization baselines and demonstrate that our method can synthesize appealing results, with fewer images, and with a fraction of the tuning time.
+
+2. Related work.
+
+Text-guided synthesis.
+
+Early text-to-image models employed a Generative Adversarial Network (GAN)-based architecture  trained on large collections of paired image-caption data . However, GANs are prone to mode collapse and are difficult to train at scale . Motivated by the scaling success of language models, auto-regressive models  treated images as word sequences in a discrete latent space . There, text guidance could be used by conditioning the generation on text-prefix, or through test-time optimization using text-to-image similarity models . Recently, diffusion models  have taken the front in image generation. They led to a remarkable headway in text-to-image synthesis, achieving unprecedented diversity and fidelity . Our approach aims to leverage such pre-trained text-to-image diffusion models, and teach them to reason about personalized concepts.
+
+Inversion.
+
+Image inversion refers to the task of finding a latent code that can be fed into a generator to reconstruct a given target image . This process typically involves direct optimization of the latent on a single image  or training a neural network to predict such a code directly. Such a network is typically referred to as an encoder , and is trained on large datasets, allowing it to generalize to new targets. When the generator’s latent spaces exhibit strong semantics, these codes can be manipulated in order to edit the target image  or used for regression tasks .
+
+With diffusion models, inversion often refers to the task of finding an initial noise sample that can be denoised into a given target . Unfortunately, such methods do not lend themselves well to downstream editing, leading to a loss of identity when the conditioning code is modified . More recently, inversion has been used in the context of text-to-image synthesis to describe the task of finding a latent code that can be used to synthesize novel images of a given concept , a process also referred to as personalization. Our method falls into the latter category.
+
+Personalization.
+
+Personalization methods adapt a given model to a unique individual or group by leveraging data specific to the target user. These methods have been used in various applications, such as recommendation systems , federated learning , and, more recently, in computer vision and graphics . In the context of text-to-image diffusion models, prior work aims to teach a pre-trained model to synthesize novel images of a specific target concept, guided by natural language prompts. Current personalization methods either optimize a set of text embeddings to describe the concept  or tune the denoising network to tie a rarely-used word-embedding to the new concept . However, both approaches require multiple images of the target concept, and employ lengthy training sessions, lasting dozens of minutes on high-end GPUs. Moreover, the model-tuning approach requires storing several gigabytes of data for each new concept - making large-scale personalization a costly endeavour. Our work brings the encoder-based approach to the realm of personalization, reducing training times by orders of magnitude, eliminating the need to store models, and allowing for model personalization using only a single image.
+
+3. Method.
+
+Our goal is to design a method for efficient injection of new concepts into a pre-trained text-to-image diffusion model. To do so, we propose a domain-tuning approach where the model is taught how to personalize well to new concepts from a given domain. To achieve this goal, we train an encoder for efficient inversion of concepts into the diffusion model, and a set of weight-offsets that modify the model so that it can be quickly tuned for novel concepts.
+
+In the following section, we outline the task of encoder inversion, our design choices when creating such an encoder, and the motivations behind them. Then, we discuss our approach for selecting a subset of weights that is expressive enough to enable personalization, yet restrictive enough to prevent the model from overfitting to the training data. Finally, we discuss our tuning approach and additional tools that can improve the results.
+
+3.1. Inversion and encoder design.
+
+Inversion encoders are neural networks that take an input image Ic representing a specific concept and predict some latent code zc such that feeding the code back into the generator G will result in a new image of the concept, that is, I′=G(zc)=G(E(Ic))∼Ic.
+
+To train such an inversion encoder, we must first choose a suitable latent space in which concepts will be represented. In the case of text-to-image diffusion models, a possible candidate is the word embedding space used in Textual Inversion . However, as Galet al. demonstrate, this space exhibits a trade-off between reconstruction and editability. This is because more accurate concept representations typically reside far from the real word embeddings, leading to poorer performance when using them in novel prompts. tackled a similar hurdle for StyleGAN inversion. They proposed a two-step solution which consists of approximate-inversion followed by model tuning. The intuition here is that the initial inversion can be constrained to an editable region of the latent space, at the cost of providing only an approximate match for the concept. The generator can then be briefly tuned to shift the content in this region of the latent space, so that the approximate reconstruction becomes more accurate. Since this change is more localized, it minimizes the loss of the network’s prior knowledge.
+
+We aim to employ a similar tuning approach here and, therefore, wish the encoder to invert new concepts into an editable region of the word-embedding space, even at the cost of accuracy. Since we train a domain-specific encoder, we elect to maintain editability by constraining our predicted embeddings to reside near the word-embedding of the domain’s coarse descriptor (for example “face”, “cat” or “art”). Our concept-specific embedding ec is thus given by:
+
+where E is our encoder, ϵdomain is the pre-trained model’s embedding for the domain’s coarse descriptor, and s is a scaling factor which we empirically set to 0.1.
+
+We additionally constrain the encoder’s prediction through a regularization penalty term:
+
+Encoder architecture.
+
+We design our encoder as a set of feature-refinement blocks built on top of a pre-trained OpenCLIP  ViT-H/14  feature-extraction backbone. Specifically, we extract the features of the [CLS] token of each 2nd CLIP layer as an hierarchical feature representation . Each such feature vector is fed through a linear layer, followed by average-pooling over the hierarchy and LeakyReLU activation. These features are then fed into a final linear layer which predicts the embedding offset, E(Ic).
+
+Iterative refinement.
+
+In the GAN literature, proposed an iterative inversion scheme. There, an encoder first predicts an initial latent z0 for a given target image It. This code is fed into a GAN G to generate an initial reconstruction I′0=G(z0). The encoder then receives the pair {It,I′0} and is tasked with reasoning over any discrepancies and predicting a refined latent z1 that produces a better reconstruction, I′1=G(z1). This process continues in an iterative fashion, leading to increased reconstruction quality.
+
+Diffusion models already employ an iterative denoising process, and therefore lend themselves well to such an approach. However, in contrast to GAN inversion, the denoising process does not provide us with clean reconstructions to use as an input to the encoder for the next iteration. Moreover, popular diffusion models operate in a latent domain , and the codes they produce cannot be naïvely fed into our feature extraction backbone. Using such a model’s decoder to map the latents back to the image domain incurs a significant cost in both memory and time. Instead, we propose that the pre-trained diffusion model already contains a feature extraction network that can reason over noisy latents, the denoiser’s U-net itself. Therefore, we feed the noisy image into the U-net encoder and extract the pooled features from each of its blocks. These features are then concatenated with the hierarchical features extracted from the concept image through the CLIP backbone, before being passed to the rest of the encoder. See fig. 2 for an illustration of this process.
+
+3.2. Weight offsets.
+
+Our approach requires us to determine a subset of model parameters that is expressive enough to allow for downstream personalization, yet restrictive enough that tuning it alone will not shift the entire generator’s domain. To do so, we first examine a set of 50 fully tuned networks taken from the HuggingFace concept library . These range from specific objects to more abstract concepts such as artistic styles. To identify which layers underwent the most significant change during tuning, we begin by calculating the unsigned distance between each fine-tuned model’s weights and those of the original. Each layer is assigned an importance score by taking the mean distance over its parameters and normalizing it by the mean value of parameters within the layer. Finally, we average each layer’s score between all the tuned models and rank the layers according to their importance score. In table 1 we list the importance score breakdowns according to different types of layers.
+
+We observe that the cross- and self-attention layers have higher scores, indicating that they play a crucial part in the tuning effort, and thus focus on modulating the weights of these layers. Specifically, we modify the three attention projection matrices - Wq, Wk and Wv. We note that a similar study was conducted in the concurrent work of. Their conclusions are largely the same. However, they opted to focus their tuning on a smaller subset of layers.
+
+However, our experiments indicate that this set of weights is still too permissive, leading to poor results at the concept-specific tuning stage. We thus propose to regularize the weight predictions by using a deep neural network as a prior . Let W{q,k,v} be an attention projection matrix of size MxN, rather than predicting it directly, we propose to learn an initial parameter vector v0 and four linear layers. The first two are used to project the vector into two components: vy in RMx1 and vx in R1xN. These are multiplied to create an MxN matrix. We further refine the result by applying a linear projection over the matrix rows, followed by a linear projection over the columns. This approach restricts the rank of the learned weights, and promotes a smoother, low-frequency result, preventing the network from overfitting to the concepts.
+
+Finally, rather than learning a new set of weights directly, we use the offset formulation of , that is:
+
+where Wi∗,0 are the initial weights of attention matrix ∗ at layer i and Delta W∗,i are the learned offsets for the same layer.
+
+3.3. Pre-training.
+
+We pre-train both the inversion encoder and the weight-offsets over a large image collection portraying our target domain. For faces we use a mix of both FFHQ  and CelebA-HQ . For cats we use LSUN-Cat  and for artistic styles we use WikiArt .
+
+Our loss is a mixture of the regularization loss of eq. 2 and the simple diffusion denoising loss :
+
+where t is the time step, zt is an image or latent noised to time t, ϵ is the unscaled noise sample, and ϵtheta is the denoising network. For pre-training, we empirically set lambda r to 0.01. 3.4. Inference-time Personalization.
+
+As a final stage in the personalization process, we tune both of our components as well as the pre-trained diffusion model using a single image of the target concept and the same loss of eq. 5. Importantly, even though the model is tuned with only a single image, we find it crucial to use a large batch size of 16 or more images. This is because the diffusion training process samples a different level of noise for each element in the batch. Hence, a large batch ensures that our model observes the concept across multiple time scales and can better adapt the iterative-refinement approach.
+
+Finally, we find that for the human face domain, it is helpful to use an off-the-shelf face segmentation network  to mask the diffusion loss at this stage.
+
+3.5. Implementation details.
+
+For a base text-to-image model, we employ Stable Diffusion , the current state-of-the-art publicly available model. We pre-train our encoders and weight offsets using a base learning rate of 1e−6 and a batch size of 16 on a single A100 GPU. The Stable Diffusion codebase scales learning rates by the batch size and number of GPUs, giving us an effective learning rate of 1.6e−5. Our face model was trained for 30,000 steps, the cat model for 60,000 steps, and the art model for 100,000 steps.
+
+When fine-tuning for a specific concept, we set lambda r=0.1 for the face domain and train for 15 iterations. For the cat and art domains we set lambda r=1e−4, the base learning rate to 3e−6, and tune the model for 5 iterations.
+
+4. Experiments.
+
+To demonstrate the effectiveness of our approach, which we dub Encoder for Tuning (E4T), we conduct a set of comparisons against the two prior personalization methods: Textual Inversion (TI)  and DreamBooth (DB) . For TI, we used the implementation provided by the authors. For DB, official code is not available. We show results using an implementation that follows the paper and tunes only the denoiser’s U-Net , as well as the results of an implementation that also tunes the word embeddings (that is performs both DB and TI concurrently).
+
+Qualitative Evaluation.
+
+We begin with a qualitative evaluation, demonstrating that our method can capture a high level of detail using only a single image and a fraction of the training steps.
+
+Figure 3 shows the results of face-personalization using the three approaches, across different levels of supervision and for a range of prompts. We follow TI and use the symbol S∗ to represent the personalized concept in the prompts. The results of E4T are competitive or better than both baseline approaches, even when these methods have access to additional data. Note that despite training only on aligned face data, our method still enables generation of unaligned or full-body images. In fig. 5 we demonstrate that E4T can be applied to additional domains, including abstract concept classes such as artistic styles.
+
+Quantitative Evaluation.
+
+We evaluate our approach quantitatively using a large-scale identity preservation experiment, as typical in GAN inversion works. Here, we use our encoder and the two baselines to personalize a model for individuals taken from the LFW  dataset. We train a model on each of the test-set identities that contain between 3 and 10 images. Our model uses only a single randomly chosen image for each identity. Competing methods use either the same single image (“single”) or the entire 3-10 image set (“multi”). In total, we train a total of 232 models for each baseline and level of supervision.
+
+We then generate a set of images of every identity across a range of prompts, covering a range of modifications such as full-body shots, stylization, accessorizing and background changes. We measure identity preservation by computing the average pair-wise identity similarity  between each person’s training set and the generated results. Following , we further measure prompt-adherance by computing the average CLIP-space similarity  between each generated image and its concept-less prompt. The results are shown in fig. 4(a). Our method sits on an appealing point on the pareto-front, representing both high identity-preservation and prompt-adherence, demonstrating that it can be used to effectively capture identities at a fraction of the time.
+
+In table 2 we report the average personalization times using each method. Note that DB and E4T require different numbers of iterations for different domains. E4T is significantly quicker than the alternatives.
+
+Ablation study.
+
+Our approach required a significant number of design choices. Here, we study these choices and demonstrate their importance in achieving high-fidelity results.
+
+We begin with a qualitative evaluation using the same image-set and metrics of fig. 4(a). We examine the effects of the following changes: (1) Removing the fine-tuning step, (2) tuning only our components (encoder, offsets) or only the denoiser, (2) removing the iterative refinement module, (3) removing the embedding regularization loss, (4) learning weight-offsets directly (rather than through a regularized network), and (5) training only an encoder (with no weight-offsets). We further compare to a HyperNetwork  baseline, where the constant-offsets are replaced by the predictions of a HyperNetwork that feeds the aggregated CLIP-backbone features into our weight-offset prediction architecture.
+
+The results are shown in fig. 4(b). As can be observed, our full model enables both high-concept similarity and good editability. Removing the embedding regularization leads to predicted codes that reside in difficult-to-modify regions of the latent space, esentially overfitting the personalized model to the given concept. A similar effect can be observed when removing the regularization on the weight-offsets, or when using a HyperNetwork. Here, the extra degrees of freedom lead to quickly overfitting on the target domain. Avoiding the inference-time tuning step or restricting it only to our components leads to significant reduction in identity preservation. Finally, discarding the iterative-refinement module harms the model’s ability to modify the concept, highlighting the advantage of being able to focus on different aspects of the target at each synthesis step. We note that similar observations were made by E-Diffi  which demonstrated that using different denoisers at different stages of the cleaning process can help improve visual fidelity and prompt-matching.
+
+Refinement analysis.
+
+Our iterative refinement approach provides us with a window into the denoising process, allowing us to see which regions of the image the network considers most worth-while to focus on at each denoising stage.
+
+To do so, we employ our concept-tuned encoder and model pair to generate novel images of the concept, where we freeze the encoder’s predictions once we reach an intermediate time step, tstop. In fig. 6 we show results along various values of tstop. As can be seen, in the early steps, the network prefers to focus on high-level semantics, such as the shape of the head or color schemes. As the process continues, we observe that the network shifts its focus to finer details like the layout of the hair.
+
+We further analyze the distance between our predicted embeddings and those of the coarse class, with and without the embedding regularization. The results are provided in fig. 7. With regularization, we notice that the embeddings begin small, as there is less need to deviate from the core word distribution in order to match rough features like the shape of the head. When adding finer details, the embeddings increase in order to capture the person-specific semantics. At the final steps, the denoiser relies mostly on the image features  and so the embedding’s role is no longer needed. In contrast, without regularization, the encoder predicts a large embedding right away. We hypothesize that in doing so, it attempts to force a structure on the initial noise which will be cleaned into a semblance of the target (in a similar manner as DDIM inversion ). This gives the denoiser very little room to deviate, and leads to overfitting the concept.
+
+Limitations.
+
+While our method can achieve high-fidelity personalization with short training times, it is not free of limitations. First, our encoders learn to generalize from large datasets that represent the coarse target class. As such, they are only applicable for classes where large datasets exist. In practice, this includes both faces and artistic styles which are the current primary use-cases for personalization. However, it may limit their applicability to rare, one-of-a-kind objects. In fig. 8 we show the effects of trying to personalize out-of-domain images using our method. When the concepts are from nearby domains (dogs, inverted with a model trained on cats), the method can still produce high-fidelity results. For farther domains (a wooden toy) the method fails to capture concept-specific details.
+
+A further limitation is in the need to perform inference-time tuning. While the impact on synthesis times is short, our approach does require the inference-machine to be capable of tuning a model. Moreover, as the encoder and text-to-image models must be tuned in tandem, this process requires more memory than direct fine-tuning approaches.
+
+5. Conclusions and Future Work.
+
+We introduced an encoder-based domain-tuning method for fast personalization of text-to-image models. At the core of our method is the idea that large, domain-specific datasets can be leveraged to find a good starting point for future optimization, thus allowing the network to better adapt to novel samples from the same domain. In this sense, our work draws inspiration from meta learning methods. As our results demonstrate, large text-to-image models are amenable to such approaches even without resorting to their typically complex machinery. Importantly, our approach allows us to achieve remarkable acceleration while maintaining state-of-the-art quality.
+
+In the future, we plan to further investigate encoder-based personalization methods, with a focus on improving the HyperNetwork based approach. We believe that with the proper regularization, this approach can be improved, leading to instant, training-free personalization.
+
+6. Ethic statement.
+
+Text-to-image models may be used to create misleading content or promote disinformation. Single-image personalization may increase the ability to forge convincing images of non-public individuals.
+
+Text-to-image models are susceptible to biases found in the training data. Our work builds on such models and may exhibit and be used to propagate similar biases. However, as demonstrated in , personalization can also be used to reduce model biases.
+
+Finally, the ability to learn artistic styles may be misused for copyright infringement. However, recent work  has shown that it is possible to protect artwork from being copied by text-to-image generators, and we hope that future research in this direction could serve to mitigate such risks of infringement.
+
+Acknowledgements.
+
+This work was partially supported by Len Blavatnik and the Blavatnik family foundation, the Deutsch Foundation, the Yandex Initiative in Machine Learning, BSF (grant 2020280) and ISF (grants 2492/20 and 3441/21).
