@@ -1,0 +1,169 @@
+Hard Prompts Made Easy:
+Gradient-Based Discrete Optimization for Prompt Tuning and Discovery.
+
+Abstract.
+
+The strength of modern generative models lies in their ability to be controlled through text-based prompts. Typical “hard” prompts are made from interpretable words and tokens, and must be hand-crafted by humans. There are also “soft” prompts, which consist of continuous feature vectors. These can be discovered using powerful optimization methods, but they cannot be easily interpreted, re-used across models, or plugged into a text-based interface.
+
+We describe an approach to robustly optimize hard text prompts through efficient gradient-based optimization. Our approach automatically generates hard text-based prompts for both text-to-image and text-to-text applications. In the text-to-image setting, the method creates hard prompts for diffusion models, allowing API users to easily generate, discover, and mix and match image concepts without prior knowledge on how to prompt the model. In the text-to-text setting, we show that hard prompts can be automatically discovered that are effective in tuning LMs for classification.
+
+![Image](https://media.arxiv-vanity.com/render-output/7213165/assets/emojis/maple-leaf1f341.png)![Image](https://media.arxiv-vanity.com/render-output/7213165/assets/emojis/smirking-face1f60f.png)![Image](https://media.arxiv-vanity.com/render-output/7213165/assets/emojis/maple-leaf1f341.png)![Image](https://media.arxiv-vanity.com/render-output/7213165/assets/emojis/smirking-face1f60f.png)![Image](https://media.arxiv-vanity.com/render-output/7213165/assets/emojis/light-bulb1f4a1.png)![Image](https://media.arxiv-vanity.com/render-output/7213165/assets/emojis/growing-heart1f497.png)
+
+1University of Maryland, 2New York University.
+
+{ywen, njain17, jkirchen, jgeiping, ,
+
+1. Introduction.
+
+Prompt engineering is the art of creating instructions to guide generative models. It is the key to unlocking the power of large models for both image generation and language tasks. As it stands today, prompt engineering methods can be coarsely divided into two camps. First, there are hard prompting methods, which use hand-crafted sequences of interpretable tokens to elicit model behaviors. Hard prompt discovery is a specialized alchemy, with many good prompts being discovered by trial and error, or sheer intuition. Then there are soft prompts, which consist of continuous-valued language embeddings that do not correspond to any human-readable tokens. Soft prompt discovery is a mathematical science; gradient-based optimizers and large curated datasets are used to generate highly performant prompts for specialized tasks.
+
+Despite the difficulty of engineering hard prompts, they have their advantages. Hard prompts and the tricks they exploit can be mixed, matched, and mutated to perform a range of different tasks, while soft prompts are highly specialized. Hard prompts are portable; they can be discovered using one model and then deployed on another. This portability is impossible with soft prompts due to differences in embedding dimension and representation space between models. Finally, hard prompts can be used when only API access to a model is available and it is not possible to control the embeddings of inputs.
+
+This work explores the use of efficient gradient methods to optimize and learn discrete text, with an emphasis on applications to prompt engineering. In doing so, we unlock the ability to learn hard prompts via optimization. Learned hard prompts combine the ease and automation of soft prompts with the portability, flexibility, and simplicity of hard prompts. Our primary contributions are summarized as follows:
+
+1. We propose a simple scheme for learning hard prompts using continuous optimization. The scheme builds on existing gradient reprojection schemes for optimizing text, and adapts lessons learned from the large-scale discrete optimization literature for quantized networks.
+2. We show that this optimization method can be used to learn hard prompts for image generation, giving us a general tool to create prompts that elicit specific image styles, objects, and appearances. The learned prompts perform competitively with highly specialized prompt generation tools, despite using far fewer tokens and containing no hand-crafted components.
+3. We also show that our learned hard prompts perform well on language classification tasks, out-performing other text optimization schemes. The learned prompts transfer well across networks, and this transfer is enhanced when they are regularized with fluency constraints to improve interpretability.
+
+In addition to capturing the quantifiable benefits of learned prompts, the proposed schemes can be used to facilitate prompt exploration and discovery, as optimization often recovers words and tokens that are simultaneously highly interpretable and also highly non-obvious.
+
+2. Related Works.
+
+Prompting in Language Models.
+was one of the first to demonstrate the power of prompting for task adaption of pre-trained language models. This “instruction tuning” paradigm has since become a standard way to increase the ability of large models to follow complex, task-specific instructions. However, automatically finding suitable sets of text prompts, that is hard prompts, for these purposes remains an open challenge. simplified the “prefix tuning” technique presented in to establish the procedure referred to as standard soft “prompt-tuning” where they optimize sequences of continuous-valued embeddings prepended to the real embeddings of the input tokens. However, subsequent work by showed that the sequences of embeddings produced by this technique could map to token sequences with limited semantic scrutability. To address these limitations, in this work we construct a method for hybridizing the continuous soft-prompt optimization with hard vocabulary constraints, resulting in task-specific, interpretable tokens.
+
+Discrete Optimization for Language.
+AutoPrompt was one of the first discrete prompt optimization frameworks for transformer language models and subsequent approaches have included a gradient-free phrase editing method , an embedding optimization approach based on Langevin dynamics and a reinforcement learning approach.
+
+We consider two gradient-based methods as baselines: FluentPrompt and AutoPrompt. AutoPrompt, which utilizes HotFlip proposed by , greedily chooses the optimal token for each location in the prompt utilizing the gradient to find a selection of good candidates. However, AutoPrompt can become expensive very quickly. For each gradient step, the method requires an evaluation of each candidate at each location in the prompt, adding numerous additional forward passes. To avoid the additional forward passes, we originally considered AutoPromptk=1 with and without an added fluency constraint, but found that AutoPromptSGD with a fluency constraint outperformed its counterparts as seen in Figure 10, and thus we use SGD version of AutoPrompt as our other baseline similar to. FluentPrompt differs from AutoPrompt by utilizing Langevin dynamics to optimize the prompt embeddings, as well as adding a fluency penalty.
+
+For the baselines discussed above, at the end of every update step, the optimized prompt embeddings are projected onto their nearest neighbor embeddings to ensure that optimization is performed on the discrete set of natural language tokens. However, if the nearest neighbors are far away from the embeddings and the learning rate is not tuned properly, the embeddings may become stagnant, which can require extensive hyperparameter tuning as demonstrated in Figure 7. The cost of such a constraint is a loss of flexibility in the solutions the optimization can find. On the other hand, while soft prompts are not as limited in this way, just clamping a well-trained soft prompt to the nearest discrete prompt strongly degrades performance as observed in.
+
+Prompt Discovery from Images.
+The process of extracting rich information from images and conveying it through natural language texts is known as image captioning. , , and achieve this goal by training large captioning models on image-text pairs. However, these captions are often generic and may not accurately reflect new or unseen objects. In , the authors propose a method that utilizes a soft prompt to optimize a text-guided diffusion model, allowing for the generation of similar visual concepts to those in the original image. In this case, though the final soft prompt is effective, optimization through a diffusion model is very expensive, and the prompts are neither interpretable nor portable.
+
+Discrete Optimization.
+Discrete optimizers have long been used to train neural networks with quantized (for example binary) weights. In that context, the approach of re-projecting between gradient steps is known as stochastic rounding. However, it is known that this approach lacks the convergence guarantees of continuous optimization. Over the last decade, stochastic rounding has been replaced by newer optimizers that maintain a continuous, rather than discrete, representation of the weights. These optimizers consistently result in higher accuracy and avoid local minima.
+
+We take inspiration from these lessons learned in the binary networks community and adapt them to refine and simplify discrete optimizers for language.
+
+3. Methodology.
+
+Learning Hard Prompts.
+We now present our effective and easy-to-use technique for discrete prompt optimization. The process requires the following inputs: a frozen model, theta , a sequence of learnable embeddings, P=[ei,...eM],ei in Rd, where M is the number of “tokens” worth of vectors to optimize, and d is the dimension of the embeddings. Additionally, we employ an objective function L. The discreteness of the token space is realized using a projection function, ProjE, that takes the individual embedding vectors ei in the prompt and projects them to their nearest neighbor in the embedding matrix E|V|×d where |V| is the vocabulary size of the model, and we denote the result of this operation as P′=ProjE(P):=[ProjE(ei),...ProjE(eM)]. Additionally, we define a broadcast function,
+B:R(M×d) -> R(M×d×b) that repeats the current prompt embeddings (P) in the batch dimension b times.
+
+Formally, to learn a hard prompt, we minimize the following risk by measuring the performance of P on the task data: R(P′)=ED(L(theta (B(P,X)),Y)).
+
+Input: Model theta , vocabulary embedding E|V|, projection function Proj, broadcast function B, optimization steps T, learning rate gamma , Dataset D.
+
+Sampled from real embeddings:
+
+P=[ei,...eM]∼E|V|
+
+for1,...,Tdo.
+
+Retrieve current mini-batch (X,Y) subset or equal D.
+
+Forward Projection:
+
+P′=ProjE(P)
+
+Calculate the gradient w.r.t. the projected embedding:
+
+g=∇P′Ltask(B(P′,Xi),Yi,theta )
+
+Apply the gradient on the continuous embedding:
+
+P=P−gamma g.
+
+endfor.
+
+Final Projection:
+
+P=ProjE[P]
+
+return P.
+
+Algorithm 1 Hard Prompts made EaZy: PEZ Algorithm.
+
+Our Method.
+We propose a simple but efficient gradient-based discrete optimization algorithm that combines the advantages of the baseline discrete optimization methods and soft prompt optimization. The steps of our scheme, which we call PEZ, are concretely defined in Algorithm 1. The method maintains continuous iterates, which in our applications corresponds to a soft prompt. During each forward pass, we first project the current embeddings P onto the nearest neighbor P′ before calculating the gradient. Then, using the gradient of the discrete vectors, P′, we update the continuous/soft iterate, P.
+
+4. Prompt Inversion with CLIP.
+
+Our method for learning hard prompts is perfectly suited to multimodal vision-language models. With these models, like CLIP , we can use PEZ to discover captions which describe one or more target images. In turn, these discovered captions can be deployed as prompts for image generation applications. Since most text-guided diffusion models utilize pre-trained text encoders, such as the CLIP text encoder, and freeze them during training, we can discover prompts using these pre-trained text encoders that are directly relevant for downstream diffusion models. For instance, we can optimize a caption which describes an image and use this caption as a prompt for a diffusion model to generate other images with the same content.
+
+Since the CLIP model has its own image encoder, we can leverage it as a loss function to drive our PEZ method. This way we are optimizing prompts only for their cosine similarity to the CLIP image encoder, and avoiding gradient calculations on the full diffusion model altogether.
+
+Formally, given a text encoder function f and an image encoder function g, we optimize the hard prompt embedding P corresponding to a target image x by minimizing the following objective: L(P,x)=1−S(f(P),g(x)), where S is the cosine similarity between two vectors.
+
+4.1 Experimental Setting.
+
+We conduct experiments on four datasets with diverse distributions: LAION , MS COCO , Celeb-A , and Lexica.art. LAION comprises over 5 billion diverse images scraped from the internet, including photos and paintings. MS COCO mainly contains real-life photographs with multiple common objects, whereas Celeb-A consists of celebrity portraits. Lexica.art is a set of AI-generated paintings with their prompts.
+
+We measure the quality of the prompt via image similarity between original (target) image, and an image generated using the learned hard prompt. To do so, we use a larger reference CLIP model, OpenCLIP-ViT/G, that was not used during optimization and serves as a neutral metric for semantic similarity between the images.
+
+We choose Stable Diffusion-v2 as our generative model, and the open-source CLIP model, OpenCLIP-ViT/H for crafting the prompt, as both share the same text encoder. During the prompt optimization process, we use a generic learning rate of 0.1 and run 3000 optimization steps using the AdamW optimizer. For Stable Diffusion-v2, we set the guidance scale to 9 and the number of inference steps to 25. For each dataset, we randomly sample 100 data points and average CLIP scores over 5 runs with different random seeds.
+
+A natural baseline for hard prompt discovery with CLIP is the CLIP Interrogator ([1] https://github.com/pharmapsychotic/clip-interrogator). To generate a descriptive hard prompt, this tool first uses a pre-trained captioning model, BLIP to create a caption of the target image. Then, top-k keywords from a pre-collected bank of keywords are appended to the caption based on CLIP scores between the keywords and the target image. These keywords were collected from various sources, including 5,265 artist names like “Van Gogh” and 100,970 phrases from prompt engineering, resulting in a diverse set. We find this keyword bank to contain most of the phrases from the Lexica.art dataset. CLIP Interrogator then greedily samples keywords until the prompt reaches CLIP’s token length limit of 77. 4.2 Results.
+
+We show example hard prompts learned using our method and corresponding generations in Figure 2. The generated images clearly show that the prompts effectively capture the semantic features of the target images. Further, the generations are highly similar to the original images as measured by CLIP score and under visual inspection. Additionally, the hard prompts do not overfit to the original target image and produce a diverse set of generated images given different random seeds.
+
+Prompts are human readable, containing a mix of real words and gibberish (non-word token sequences). However, the valid words that are included in the prompts provide a significant amount of information about the image. For example, in the first row, we can see the words “milkyway” and “campfire,” which are the two main elements in the target image. Interestingly, the optimized prompts may also include emojis, like present in the second row. represents the trees on the side and also the color theme of the image. The optimization process seems to choose these emojis to include useful information while keeping the prompt concise.
+
+Further, we present quantitative evaluations in Table 1. Our method performs consistently across all four datasets and outperforms other gradient-based optimization baselines (full table can be found in Table 7). Notably, we can achieve similar performance to CLIP Interrogator, which has the highest CLIP score on LAION, MS COCO, Lexica.art, but not Celeb-A (The keyword bank in CLIP Interrogator does not include many words related to real human faces). However, CLIP Interrogator uses a large curated prompt dataset, the image captioning model BLIP, and a large number of tokens (as many as 77), while our proposed method only uses the CLIP model for prompt discovery and 8 tokens in total demonstrating its simultaneous simplicity and strength.
+
+We ablate each of these differences. To do so, we include the keyword bank in our optimization method and only allow projections onto tokens from the keyword bank. Overall, we find that when adding this constraint to our model, and disabling BLIP to compare both methods on equal footing, we recover most of the quantitative difference between the methods on LAION and Lexica.art. Additionally, reducing the token length for the CLIP Interrogator, leads to a sharp drop in performance, again, particularly when normalizing by comparing both approaches at equal token lengths of 8. We note that even though Stable Diffusion and CLIP share the same text encoder, soft prompts do not transfer well compared to all hard prompt methods in our evaluation.
+
+Prompt Length. We further ablate the optimal number of tokens. In Figure 5, we find that longer prompts do not necessarily produce better results when generating with Stable Diffusion, even though they strictly reduce loss on the CLIP image encoder. Long prompts thus overfit and are less transferable, and we empirically find a length of 16 to result in the most generalizable performance.
+
+4.3 Style Transfer.
+
+The proposed approach can also be easily adapted to style transfer. We follow the setting investigated with soft prompts in but with our hard prompts. Given several examples that share the same style, we extract their shared style characteristics into a single hard prompt and use this prompt to apply the style to new objects or scenes. Figure 3 presents two examples of style transfer, showing that our method can easily embed the shared style elements in the prompt and apply them to novel concepts. Templates and learned prompts can be found in Section A.1. 4.4 Prompt Concatenation.
+
+Learned hard prompts are also very useful as composable building blocks for intricate scenes. We test this in Figure 4, where we separately generate prompts for two unrelated images, and then fuse both images by concatenating their prompts. We find that even different concepts, such as painted horses on a beach and a realistic sunset in a forest can be combined via their generated prompts.
+
+4.5 Prompt Distillation.
+
+Another application where we can use our prompt optimization method is prompt distillation, reducing the length of prompts while preserving their capability. Distillation is useful in situations where the text encoder of the diffusion model has a limited maximum input length, such as the CLIP model, which has a maximum input length of 77 tokens. Also, long prompts may contain redundant and unimportant information, especially when hand-crafted, so we aim to distill their essence, preserving only important information in the prompt. We optimize a shorter prompt to match the features of the longer prompt simply based on its text encoder f. Given a target prompt’s embedding Ptarget and learnable embedding e, we simply modify our loss into: L=1−Sim(f(Ptarget),f(P)). We define the distillation ratio by |P|/|Ptarget|.
+
+In Figure 6, we show images generated by the original prompts and the distilled prompts with four different distillation ratios: 0.7, 0.5, 0.3, 0.1. We see here that even with only 3 or 4 tokens, the hard prompts can still generate images very similar in concept to the original, successfully distilling the longer human-made instructions.
+
+5. Discrete Prompt Tuning with Language Models.
+
+In the text-to-text setting, the goal of Algorithm 1 is to discover a discrete sequence of tokens, the hard prompt, that will prompt the language model to predict the outcome of a classification task. Since an important property of text is its fluency, find that fluency can increase a prompt’s readability and performance. Thus, we define the optimization objective in this section as a weighted function of task loss and fluency loss,
+
+We set lambda =0.003 similar to for all methods, and we ablate our method without fluency (lambda =0), which we denote as no fluency. We set out to show that hard prompts generated by this approach are successful both when transferring between a number of transformer-based language models, and also when used to discover prompts in few-shot settings. An attractive quality of these prompts, especially for language applications, is that they can be optimized on smaller language models and then transferred to other, much larger models.
+
+5.1 Datasets and Setup.
+
+We evaluate Algorithm 1 against related algorithms on three classification tasks, two sentiment analysis tasks, SST-2 and Amazon Polarity , and a 4-way classification task, AGNEWS. We build on the setting explored in and optimize hard prompts using GPT-2 Large (774M parameters) with the Adafactor optimizer and a batch size of 32. We provide details for prompt templates and verbalizers in Table 4. Transferability Set-up.
+To test transferability, we generate prompts from GPT-2 Large for 5000 steps. We then select the five prompts with the highest average validation accuracy for each technique and test them on larger models. We test the transferred text on: GPT-2 XL, T5-LM-XL, OPT-2.7B, and OPT-6B , verifying the reliability of the proposed algorithm over related techniques and testing whether the hard prompt can reliably boost performance. Thus, we also consider a baseline of empty prompts, with only the template.
+
+Few-Shot Setup.
+For the few-shot setting, we optimize each prompt for 100 epochs on GPT-2 Large on the AGNEWS dataset, where we sample two examples (k=2) and four examples (k=4) from each class to obtain the training set. Additionally, we create a holdout set of the same size, and finally validate the prompts on the entire validation set.
+
+5.2 Results.
+
+We verify that our method is comparable to other methods in the sentiment analysis setting and outperforms the other methods on AGNEWS by about 2%. See Table 5 for details.
+
+Prompt Transferability.
+Table 2 shows for each method the five prompts trained on GPT-2 Large transferred to other LLMs. Interestingly, simply scaling a model--with no additional training--does not guarantee that performance will scale accordingly. ([2] A quick experiment with and without the template on GPT-2 Large and XL showed that the template boosts performance differently for different models.) We see that all gradient-based methods are able to transfer compared to evaluating just the template, finding that our prompts trained with the fluency constraint transfer better than the other prompts. Additionally, we can see the largest boost from OPT-6.7B with our fluent method with about a 14% increase over just the template baseline. Additionally, we see our AGNEWS prompts are able to transfer from GPT-2 Large to GPT-2 XL in Table 6 of the Appendix.
+
+Prompt Discovery.
+Table 3 shows that even with just a few shots, we can achieve high validation accuracy compared to our prepended counterparts. It is worth noting that each few-shot run takes about 5 minutes.
+
+We run 100 seeds where the training set contains k samples from each class and also qualitatively examine the top prompts. Although many of the prompts are non-interpretable, many are also coherent. For example, even for k=2, some of the prompts included news sources like “BBC”, while other prompts find new approaches to the news classification task considering the text coming from a blog: “Brian blog,” or “Blog Revolution analyze.” Due to the efficiency of these gradient-based methods, these methods can allow new ways for prompt engineers to discover novel prompts.
+
+6. Conclusion.
+
+We propose a new method that utilizes continuous embeddings to reliably optimize hard prompts. The key advantage of our method is the use of continuous, that is soft, prompts as intermediate variables during the optimization of hard prompt tokens, leveraging gradient-based optimization. This way, the algorithm selects locations in embedding space where discrete embeddings are useful, rather than simply optimizing a soft prompt and later projecting onto nearby token embeddings in the hopes that these nearby hard prompts will perform well too. Additionally, as our method utilizes gradients across all steps by accumulating them into the soft prompt, this process makes optimization more robust to learning rates and potential noise in the data.
+
+Although our work makes progress toward prompt optimization, the community’s understanding of language model embedding space is still in its infancy, and a deeper understanding of the geometry of the embedding space will likely enable even stronger prompt optimization in the future.
+
+Overall, we show through our experiments that hard prompts can be easily generated and flexibly used in practical applications. Yet, a limitation of hard prompts is that even though they are human-readable, they may still contain several un-interpretable tokens. Additionally, hard prompts may possibly extract harmful phrases or sensitive content from a language model’s training data. Even though we did not observe specific instances of this behavior, it is a concern that should be taken into account in future applications.
+
+7. Acknowledgements.
+
+This work was made possible by the Office of Naval Research (N000142112557), the ONR MURI program, the National Science Foundation (IIS-2212182), and Capital One Bank.
