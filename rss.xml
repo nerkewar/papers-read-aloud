@@ -35,6 +35,40 @@
     <podcast:locked owner="sables-probe-0i@icloud.com">no</podcast:locked>
     <podcast:medium>podcast</podcast:medium>
     <item>
+        <title>StyleDrop: Text-to-Image Generation in Any Style</title>
+        <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2306.00983</guid>
+        <description>
+        <![CDATA[<p>Pre-trained large text-to-image models synthesize impressive images with an appropriate use of text prompts. However, ambiguities inherent in natural language and out-of-distribution effects make it hard to synthesize image styles, that leverage a specific design pattern, texture or material. In this paper, we introduce StyleDrop, a method that enables the synthesis of images that faithfully follow a specific style using a text-to-image model. The proposed method is extremely versatile and captures nuances and details of a user-provided style, such as color schemes, shading, design patterns, and local and global effects. It efficiently learns a new style by fine-tuning very few trainable parameters (less than 1% of total model parameters) and improving the quality via iterative training with either human or automated feedback. Better yet, StyleDrop is able to deliver impressive results even when the user supplies only a single image that specifies the desired style. An extensive study shows that, for the task of style tuning text-to-image models, StyleDrop implemented on Muse  convincingly outperforms other methods, including DreamBooth  and textual inversion  on Imagen  or Stable Diffusion . More results are available at our project website: https://styledrop.github.io.</p>]]>
+        </description>
+        <pubDate>Mon, 11 Sep 2023 21:38:23 +0000</pubDate>
+        <enclosure
+        url="https://nerkewar.github.io/papers-read-aloud/episodes/2306.00983/audio.mp3" type="audio/mpeg" />
+        <itunes:author>nerkewar</itunes:author>
+        <itunes:explicit>No</itunes:explicit>
+        <itunes:episodeType>Full</itunes:episodeType>
+        <itunes:episode>9</itunes:episode>
+        <itunes:keywords></itunes:keywords>
+        <itunes:season>1</itunes:season>
+        <podcast:episode>9</podcast:episode>
+    </item>
+    <item>
+        <title>LayerDiffusion: Layered Controlled Image Editing with Diffusion Models</title>
+        <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2305.18676</guid>
+        <description>
+        <![CDATA[<p>Text-guided image editing has recently experienced rapid development. However, simultaneously performing multiple editing actions on a single image, such as background replacement and specific subject attribute changes, while maintaining consistency between the subject and the background remains challenging. In this paper, we propose LayerDiffusion, a semantic-based layered controlled image editing method. Our method enables non-rigid editing and attribute modification of specific subjects while preserving their unique characteristics and seamlessly integrating them into new backgrounds. We leverage a large-scale text-to-image model and employ a layered controlled optimization strategy combined with layered diffusion training. During the diffusion process, an iterative guidance strategy is used to generate a final image that aligns with the textual description. Experimental results demonstrate the effectiveness of our method in generating highly coherent images that closely align with the given textual description. The edited images maintain a high similarity to the features of the input image and surpass the performance of current leading image editing methods.<br>LayerDiffusion opens up new possibilities for controllable image editing.</p>]]>
+        </description>
+        <pubDate>Mon, 11 Sep 2023 21:37:19 +0000</pubDate>
+        <enclosure
+        url="https://nerkewar.github.io/papers-read-aloud/episodes/2305.18676/audio.mp3" type="audio/mpeg" />
+        <itunes:author>nerkewar</itunes:author>
+        <itunes:explicit>No</itunes:explicit>
+        <itunes:episodeType>Full</itunes:episodeType>
+        <itunes:episode>8</itunes:episode>
+        <itunes:keywords></itunes:keywords>
+        <itunes:season>1</itunes:season>
+        <podcast:episode>8</podcast:episode>
+    </item>
+    <item>
         <title>Abstract</title>
         <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2307.05977</guid>
         <description>
