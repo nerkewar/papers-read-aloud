@@ -1,0 +1,325 @@
+Data Redaction from Conditional Generative Models.
+
+Abstract.
+
+Deep generative models are known to produce undesirable samples such as harmful content. Traditional mitigation methods include re-training from scratch, filtering, or editing; however, these are either computationally expensive or can be circumvented by third parties. In this paper, we take a different approach and study how to post-edit an already-trained conditional generative model so that it redacts certain conditionals that will, with high probability, lead to undesirable content. This is done by distilling the conditioning network in the models, giving a solution that is effective, efficient, controllable, and universal for a class of deep generative models. We conduct experiments on redacting prompts in text-to-image models and redacting voices in text-to-speech models. Our method is computationally light, leads to better redaction quality and robustness than baseline methods while still retaining high generation quality.
+
+1. Introduction.
+
+Deep generative models are unsupervised deep learning models that learn a data distribution from samples and then generate new samples from it. These models have shown tremendous success in many domains such as image generation , audio synthesis , and text generation. Most modern deep generative models are conditional: the user inputs some context known as the conditionals, and the model generates samples conditioned on the context.
+
+However, as these models have grown more powerful, there has been increasing concern about their trustworthiness: in certain situations, these models produce undesirable outputs. For example, with text-to-image models, one may craft a prompt that contains offensive, biased, malignant, or fabricated content, and generate a high-resolution image that visualizes the prompt. With speech synthesis models, one may easily turn text into celebrity voices. Text generation models can emit offensive, biased, or toxic content.
+
+One plausible solution to mitigate this problem is to remove all undesirable samples from the training set and re-train the model. This is too computationally heavy for modern, large models. Another solution is to apply a classifier that filters out undesirable conditionals or outputs , or to edit the outputs and remove the undesirable content after generation. However, in cases where the model owners share the model weights with third parties, they do not have control over whether the filters or editing methods will be used. In order to prevent undesirable outputs more efficiently and reliably, we propose to post-edit the weights of a pre-trained model, which we call data redaction.
+
+The first challenge is how to frame data redaction for conditional generative models. Prior work in data redaction for unconditional generative models considered this problem in the space of outputs, and framed the problem as learning the data distribution restricted to a valid subset of outputs. However, a conditional generative model learns a collection of (usually an infinite number of) distributions (one for each conditional) all of which are induced by networks that share weights; therefore, we cannot apply this method one by one for every conditional we would like to redact. In this paper, we frame data redaction for conditional generative models as redacting a set of conditionals that will very likely lead to undesirable content. In particular, we do redaction in the conditional space, instead of separately redacting samples generated from each conditional in the output space.
+
+This framework inspires us to design a universal, efficient, and effective method for data redaction. We only re-train (or distill) the conditional part of the network by projecting redacted conditionals onto different, non-redacted reference conditionals. It is computationally light because all but the conditioning network is fixed, and we only need to load a small fraction of the dataset for training.
+
+We show there exists an explicit data redaction formula for simple class-conditional models. For more complicated generative models in real-world applications, we introduce a series of techniques to effectively redact certain conditionals but retain high generation quality. These include model-specific distillation losses and training schemes, methods to increase the capacity of the student conditioning network, ways to improve efficiency, and a few others.
+
+We test our data redaction method on two real-world applications: GAN-based text-to-image and Diffusion-based text-to-speech. For text-to-image, we redact prompts that include certain words or phrases. Our method has significantly better redaction quality and robustness than baseline methods while retains similar generation quality as the pre-trained model. For text-to-speech, we redact certain voices outside the training set. Our method achieves both high redaction and speech quality. Audio samples can be found on our demo website (https://dataredact2023.github.io/). Our methods for both applications are extremely computationally efficient: redacting text-to-image models takes approximately 0.5 hour, and redacting text-to-speech models takes less than 4 hours, both on one single NVIDIA 3080 GPU. In contrast, training the text-to-image model takes more than a day on one GPU, and training the text-to-speech model takes 2-3 days on 8 GPUs. This demonstrates that data redaction can be done significantly more efficiently than re-training full models from scratch.
+
+1.1 Related Work.
+
+Machine Unlearning. Machine unlearning computes or approximates a re-trained machine learning model after removing certain training samples. Many methods have been proposed for supervised learning as well as generative models. The goal of data redaction is very different from machine unlearning, which unlearns training samples and is usually in the privacy context, while data redaction prevents undesirable samples from generation regardless whether they are in the training set. A detailed explanation can be found in Section II-C in.
+
+Data Filtering and Semantic Editing. A direct way to prevent certain samples to be generated is to apply a data filter (for example, a malicious content classifier). The filter can be applied to training data before training , or applied post-hoc to model outputs. Another line of research has looked at semantically modifying the outputs of generative models. For GANs , computes an editing vector in the latent space to alter a semantic concept. For diffusion models especially text-to-image models like Stable Diffusion , there are also a number of image editing techniques. applied image editing to prevent diffusion models from generating malicious images through a safety guidance term that alters the sampling algorithm for inappropriate prompts.
+
+While these filtering and editing methods can be used to prevent malicious images, the model parameters are not modified. Consequently, in cases where the models owners share the model weights with third parties, they do not have control over whether the third parties will use the filters or editing methods. In contrast, our proposed method modifies the model weights to address this issue.
+
+Data Redaction in Unconditional Models.
+Several works have studied methods to prevent generative models from producing undesirable samples, either by re-training or post-editing. For GANs, and investigated re-training methods via modified loss functions that penalize generation of undesirable samples, and and introduced post-hoc parameter rewriting techniques for semantic editing, which can be used to remove undesirable artifacts. , , and designed post-editing data redaction methods for various types of pre-trained generative models.
+
+All these methods are restricted to the unconditional setting as they modify the mapping from latent vectors to samples. In contrast, the goal of this paper is to redact data from pre-trained, conditional generative models. In these models, the conditional information heavily controls the content and style of generated samples (for example text-to-X), whereas the latent controls variation. It is therefore necessary to also modify the mapping from conditional to samples.
+
+Redaction in Stable Diffusion via Fine-tuning. fine-tunes Stable Diffusion to incorporate negative guidance on undesirable visual styles (for example, those under copyright protection). As a result, undesirable samples will not be generated with the standard sampling algorithm. However, one might break the safety protection by applying a strong positive guidance during sampling. In addition, this method only applies to diffusion models trained with classifier-free guidance. In contrast, our proposed method is universal and applies to a broader range of generative models.
+
+2. Preliminaries.
+
+Conditional Generative Models.
+Let C be the space of conditionals. It could be a finite set of discrete labels, or an infinite set of continuous representations. ([1] In cases where there are infinitely many discrete labels such as text or 16-bit floats, these conditionals are usually considered as continuous or transformed to continuous representations.) For any c in C there is an underlying data distribution pdata(⋅|c) (on Rd) conditioned on c. In the discrete label case, this simply corresponds to a finite number of data distributions for all labels. In the more complicated continuous case, there is usually an underlying assumption that pdata(⋅|c) is Lipschitz with respect to c: that is, pdata(⋅|c) will not change much if c does not change much.
+
+Let X={(xi,ci)} be the set of training data. where each xi is the sample and ci is the conditional (for example, xi is an image and ci is its caption). Let G be a conditional generative model trained on X. G has two inputs – a sample latent z drawn from a Gaussian distribution and a conditional c – and outputs sample x=G(z|c). For each c in C, G draws from a generative distribution pG(⋅|c), which is trained to learn pdata(⋅|c). In the discrete label case, this is equivalent to modeling a finite number of distributions. In the continuous case, G also needs to generalize to unseen conditionals, because not all conditionals exist in the training set. We assume that pG(⋅|c) learns pdata(⋅|c) very well, as how to train these models is outside the scope of this paper.
+
+Problem setup. Our goal is to redact a set of conditionals COmega subset C, referred to as the redaction conditionals, which with high probability lead to undesirable content. For example, for text-to-image models, we may be looking to redact text prompts related to violence or offensive content. ([2] This does not necessarily redact every possible offensive output; for example, an innocent prompt such as "a day in the park" might with very low probability result in a violent image which our solution will not address.)
+
+We assume that the redaction conditionals are given to us either as a set or described by a classifier. We assume that we are working with an already trained generative model G and we are only allowed to post-edit it. Re-training generative models from scratch can be highly compute-intensive, and so our goal is to consider computationally efficient solutions. Additionally, we also want to avoid solutions that involve external filters, since a third-party can choose not to use them. A final requirement of our solution is that it should retain high generation quality for the conditionals that are not to be redacted.
+
+We assume that we have access to the parameters of the network G and (part or whole of) its training dataset X. The goal of this paper is to edit the parameters of model G to form a new model G′ so that harmful conditionals lead to the generation of benign outputs.
+
+Our proposed solution addresses this problem in the context where the conditioning networks are separate from the main generative network – which holds for most current network architectures – and achieves this by distilling only the conditioning networks.
+
+3. Method.
+
+In this section, we consider a special solution to our redaction task: for redacted conditionals c in C, we let G′ learn the distribution conditioned on a different, non-redacted conditional ^c in C∖COmega , which we denote as the reference conditional for c. Formally,
+
+Next, we introduce an efficient way to achieve (1). Let H be the (separate) conditioning network in the generator network G. H takes the conditional c as input and computes conditional representation H(c), which is then fused into the main generative network (potentially at different layers). Our solution is to project the conditional representation H′(c) of the new conditioning network to H(^c):
+
+In Section 3.1, we show (2) can be done explicitly if the model is conditioned on a few discrete labels and the conditioning network is affine. In Section 3.2, we introduce distillation-based methods for two practical applications, where the models are conditioned on continuous representations and the network architectures are more complicated.
+
+3.1 Redacting Models Conditioned on Discrete Labels.
+
+In this section, we show for simple class-conditional models, there is an explicit formula to redact a label. Suppose there are k labels: C={c1,⋯,ck}, where label j is to be redacted. We consider a common type of conditioning method: each label ci is represented by a k-dimensional embedding vector vi in Rk, and H is an affine transformation whose output dimension r≥k. We assume the embedding vectors are linearly independent: span{v1,⋯,vk}=Rk. A special case of this formulation is the conditioning method proposed by , where each vi=ei is the one-hot vector with the i-th element =1, and is concatenated to the latent code.
+
+Let H(v)=Mv, where M in Rr×k. The redaction problem is equivalent finding an M′ in Rr×k such that M′vi=Mvi for i≠j and M′vj=MV−jeta −j for an one-hot vector eta −j in Rk−1, where V−j=[v1,⋯,vj−1,vj+1,⋯,vk] in Rk×(k−1). The first condition M′vi=Mvi for i≠j indicates every row of M′−M is in the null space of {vi}i≠j. The null space is a one-dimensional subspace with basis vector u. Then, M′−M can be decomposed as omega u⊤ for some omega in Rr. Then, by to the second condition M′vj=MV−jeta −j, we have omega =1u⊤vjM(V−jeta −j−vj). This means by replacing M with M′=M(I+1u⊤vj(V−jeta −j−vj)u⊤), we are able to redact label j. When conditioned on j, the edited model will generate another digit based on the non-zero element in eta −j.
+
+Generalization.
+We discuss several generalizations in Appendix A. First, we can redact multiple labels by re-writing the formula in matrix form. Second, the editing method applies to when the dimension of vi is larger than k. We also provide simplified formulas for one-hot embedding vectors.
+
+3.2 Redacting Models Conditioned on Continuous Representations.
+
+Generally there is no explicit formula to achieve (2) due to non-linearity and limited expressive power of the conditioning network. We propose to distill the conditioning network by minimizing.
+
+for some metric ∥⋅∥ and balancing coefficient lambda &gt;0. In the rest of this section, we study two types of common conditional generative models: image models conditioned on text prompts, and speech models conditioned on spectrogram representations. We will demonstrate specific losses and distillation techniques for each model that align with the slightly different goals in each task.
+
+3.2.1 Redacting GAN-based Text-to-Image Models.
+
+In this section, we study how to redact text prompts in text-to-image models. Modern text-to-image models can produce high-resolution images conditioned on text prompts that may be offensive, biased, malignant, or fabricated. These models are usually expensive to re-train, so it is important to redact these prompts without re-training.
+
+Especially, we look at DM-GAN , a GAN-based text-to-image model. It is trained on pairs of text and images from the CUB dataset , a dataset for various species of birds. DM-GAN is composed of three cascaded generative networks {G1,G2,G3}. The first G1 generates 64×64 images, the second G2 up-samples to 128×128, and the third G3 up-samples to 256×256. Each Gi has its own conditioning network Hi. For a given prompt c, the model computes a sentence embedding vs(c) and word embeddings vw(c) from a pre-trained text encoder. The first conditioning network H1 performs conditioning augmentation on the sentence embedding and concatenate the output to the latent variable. H2 and H3 apply memory writing modules to the word embeddings and fuse the outputs with the previously generated low-resolution images via several gates.
+
+Defining ^c.
+We assume COmega contains prompts that have undesirable words or phrases. For these prompts, the reference prompts are defined by replacing these words with non-redacted ones.
+
+Sequential distillation.
+We propose to distill the conditioning networks {H1,H2,H3} sequentially based on (3). This is because both G2 and G3 are generative super-sampling networks, which take G1 and G2 outputs as inputs, respectively. After G1 is edited to G′1 for redaction, G2 will take G′1 outputs as inputs, and similar for G3. Formally,
+
+Improved capacity.
+As H′1 needs to approximate a piecewise function that is defined differently for two sets of sentence embeddings, we need to increase the capacity of H′1 for better distillation. We append a few LSTM layers to the beginning of H′1, which directly take the sentence embeddings as inputs. The LSTM layers are followed by a convolution layer that reduces hidden dimensions to 1. We initialize this layer with zero weights for training stability. We expect these layers can project sentence embeddings of c to those of ^c. The rest of H′1 has the same architecture as H1 but all weights are initialized for training. We do not increase the capacity of H′2 and H′3 for two reasons. First, H′1 has more direct impact on the generated images because it directly controls the initial low-resolution image. Second, the memory writing modules of H2 and H3 are already very expressive.
+
+Fixing the variance prediction part in H1.
+We aim to reduce the computational overhead by fixing certain variables. The conditioning augmentation module in H1 first computes a mean and a variance vector, and then samples from the Gaussian defined by them. We fix the variance prediction part and only distill the mean prediction part. In our experiments the number of parameters to be trained in H′1 (with improved capacity) is reduced by ∼32% and therefore matches that of H1. lambda annealing.
+In order to make sure the distilled conditioning networks also approximate the pre-trained ones well for non-redacted prompts, we anneal the balancing coefficient lambda during distillation: we initialize lambda =lambda min and linearly increases to lambda max in the end.
+
+3.2.2 Redacting Diffusion-based Text-to-Speech Models.
+
+Modern text-to-speech models can turn text into high-quality speech in unseen voices such as celebrity voices. This may have unpredictable public impact if these models are used to fake celebrities. In this section, we study redacting certain voices from a pre-trained text-to-speech model.
+
+Especially, we look at DiffWave , a diffusion probabilistic model that is conditioned on spectrogram and outputs waveform. It is trained on speech of a single female reading a book, which we call the pre-trained voice. There are n=30 layers or residual blocks in DiffWave, each containing one independent conditioning network Hi. The architecture of each Hi includes two up-sampling layers followed by one convolution layer.
+
+Defining ^c with voice cloning.
+We assume COmega contains a few clips of speech in a specific voice. We train a voice cloning model (CycleGAN-VC2 ) between the specific and pre-trained voices, and then transform all clips in COmega to the pre-trained voice. By doing this we obtain time-aligned pairs between c in COmega and the corresponding ^c: when we select a small duration [t,t+Delta t], the content of ct:t+Delta t is the same as ^ct:t+Delta t, yet only the voices are different.
+
+Improved voice cloning.
+We find the voice cloning quality of CycleGAN-VC2 can be improved by making the two unpaired training sets more similar. We first use a pre-trained Whisper model to extract text from redacted speech. Then, we use Tortoise-TTS to turn these text into speech in the pre-trained voice. Note that this cannot be used to define ^c directly because the generated samples are not time-aligned with the speech to be redacted. However, these generated samples are more similar to the redacted samples because they have the same text, and therefore it is easier for CycleGAN-VC2 to learn transformations between these two voices.
+
+Parallel distillation.
+We propose to distill all conditional layers Hi’s in parallel as they are independent. We minimize the following loss:
+
+Fixing up-sampling layers in Hi.
+To reduce computation overhead we fix the two up-sampling layers in each Hi. We only distill the last convolution layer in each Hi.
+
+Improved capacity.
+To improve redaction quality, we increase the capacity of each H′i by replacing its last convolution layer hconv with a spectrogram-rewriting module. It has two components: a gate hgate consisting of a convolution with zero initialization followed by sigmoid, and a transformation block htrans consisting of two convolution layers. The forward computation of the spectrogram-rewriting module is defined as:
+
+where v is the up-sampled mel-spectrogram and y is the output representation at each layer. We expect this module can retain the pre-trained voice and also project redacted voices to the pre-trained voice.
+
+Non-uniform distillation losses.
+We conjecture the all conditioning layers are not the same important because of their order and different hyper-parameters specifically the dilation 2imodn′ in the corresponding residual layer. This motivates us to use different weights and lambda values for each Hi:
+
+We test different schedules described in Table 1. 4. Experiments.
+
+In this section, we aim to answer the following questions. (1) Is the redaction method in Section 3.1 able to fully redact labels? And (2) do the redaction algorithms in Section 3.2 redact certain conditionals well and retain high generation quality on real-world applications?
+
+4.1 Redacting Models Conditioned on Discrete Labels.
+
+We train a class-conditional GAN called cGAN on MNIST. Each conditional has a 10-dimensional embedding vector, and is concatenated to the latent vector as the input. The affine transformation matrix M in Section 3.1 is the last 10 rows of the weight matrix of the first fully connected layer. We redact labels 0,1,2,3 according to (8), where we let ^c=9−c for them. Generated samples of pre-trained and redacted models are shown in Figure 2. 4.2 Redacting GAN-based Text-to-Image Models.
+
+Setup.
+We use the pre-trained DM-GAN model trained on the CUB dataset , which contains 8855 training images and 2933 testing images of 200 subcategories belonging to birds. Each image has 10 captions. Our distillation algorithm is trained with the caption data only. We redact prompts that contain certain words or phrases. We redact the word blue in c by defining ^c as the prompt that replaces all blue with another word red. ([3] Any word other than blue can be used.) Similarly, we redact blue wings and red wings by replacing these phrases to white wings. We redact long beak and white belly by replacing the first to short beak and the second to black belly. Finally, we redact yellow and red by replacing them to black, which is more challenging as many samples are redacted. More details are in Appendix B.
+
+Configurations.
+We first use the sequential distillation (4) with lambda =1 to perform redaction, which we denote as the base configuration. We then improve the capacity by using a 3-layer bidirectional LSTM with hidden size =32 and dropout rate =0.1. Next, we fix the variance prediction in H1 to reduce the number of parameters to optimize, which matches the base configuration. Finally, we apply lambda annealing by setting lambda min=1 and lambda max=3. Baseline.
+We compare to the Rewriting algorithm , a semantic editing method originally designed for unconditional generative models. We adapt their method to DM-GAN by rewriting G1, G2, and G3 sequentially. For both G2 and G3 we rewrite the up-sampling layer before the feature output. For G1 we have choices of rewriting the up-sampling layer at different resolutions ranging from 8×8 to 64×64. We test all these choices in the experiment.
+
+Evaluation metrics.
+We use Inception Scores (IS) to measure the generation quality of G′. We compute IS for images conditioned on redacted and valid prompts, respectively.
+
+Let c∼COmega and z∼N. We compute the following three metrics to evaluate redaction quality.
+
+1. RG(⋅|c/^c) measures faithfulness of G′ on the redaction prompts. It is defined as the fraction of samples {G′(z|c)} such that dist(G′(z|c),G(z|^c))&lt;dist(G′(z|c),G(z|c)), where dist is ℓ2 distance in the Inception-V3 feature space.
+
+
+2. The R-precision score Rr measures how well G′(z|c) matches the caption ^c according to a correlation metric corr(x,c) between sample x and caption c. Formally, Rr is defined as the fraction of samples G′(z|c) such that corr(G′(z|c),^c) is larger than the correlation between G′(z|c) and 100 random, mismatch captions.
+
+
+3. We further introduce Rc/^c, which measures how much better G′(z|c) matches ^c than c. It is defined as the fraction of samples G′(z|c) such that corr(G′(z|c),^c)&gt;corr(G′(z|c),c).
+
+Results.
+The results for redacting yellow and red shown in Table 2. The base configuration already achieves good redaction and generation quality. After improving capacity, we find all redaction quality metrics increase by 2.3∼2.7%, and generation quality is retained. After we fix the variance prediction in H1, the redaction decrease by ∼1%, but the generation quality on valid prompts increases by 0.1. Finally, by performing lambda annealing, all metrics improve. Notably, RG(⋅|c/^c) and Rc/^c increase by over 5%, indicating generated samples are more similar to ^c rather than c.
+
+We find the Rewriting baselines achieve better IS. However, generated samples are blurred and lack sharp edges as shown in the visualization. The redaction quality of Rewriting has a significant gap with ours: all redaction metrics are less than half of ours. Especially, Rr is worse than the pre-trained model, indicating generated samples conditioned on redacted prompts are not very correlated to ^c. We hypothesize the main problem for Rewriting is that it is crafted for 2D convolutions and edits the main generative network, which makes it hard to handle and distinguish the information from different prompts. In terms of different choices of resolutions, we find rewriting the layer at resolution 8×8 yields the best redaction quality.
+
+Table 3 includes results for redacting the other prompts. The Rewriting baseline is applied to 8×8 resolution in H1 because it yields the best redaction quality. We find the base configuration of our method is already very effective. Our method greatly outperforms Rewriting in all redaction quality metrics and keeps good generation quality. See visualization in Appendix B.3. Computation. Data redaction takes about 30 minutes to train on a single NVIDIA 3080 GPU.
+
+Robustness to adversarial prompting.
+In order to understand whether adversarial prompts may cause the redacted model to generate content we would like to redact, we perform an adversarial prompting attack to redacted or rewritten models in this section. Specifically, we adopt the Square Attack directly to the discrete text space. For c in COmega , the goal is to find an adversarial conditional cadv such that corr(G′(z|cadv),c)&gt;corr(G′(z|cadv),^c). The algorithm is shown in Algorithm 1 and some examples of successful attacks are shown in Appendix B.4. Success rates of the proposed attack are shown in Table 4. The success rates for our redaction method is consistently lower than the Rewriting baseline (by 31%∼45%), indicating our method is considerably more robust to adversarial prompting attacks than Rewriting.
+
+1:Initialize cadv=c.
+
+2:foriteration = 1,⋯,16do.
+
+3:Uniformly sample a position s of the caption cadv to update.
+
+4:Uniformly sample 32 candidate words from the token dictionary. Construct 32 candidate adversarial captions by replacing the s-th token of cadv with these words, respectively.
+
+5:Update the adversarial caption cadv with the one with the largest sim(G′(z|cadv),c).
+
+6:endfor.
+
+7:return cadv.
+
+Algorithm 1 Adversarial Prompting via Square Attack.
+
+4.3 Redacting Diffusion-based Text-to-Speech Models.
+
+Setup.
+We use the pre-trained DiffWave model trained on the LJSpeech dataset , which contains 13100 utterances from a female speaker reading books in home environment. The model is conditioned on Mel-spectrogram. We redact unseen voices from the disjoint LibriTTS dataset. We randomly choose five voices to redact: speakers 125, 1578, 1737, 1926 (female’s voice) and 1040 (men’s voice). The training set for each voice has total lengths between 4 and 6 minutes. Our distillation algorithm is trained with the spectrogram data only. The CycleGAN-VC2 is trained with ∼1% of training utterances from LJSpeech (∼11 minutes) and all training samples from each LibriTTS voice. More details are in Appendix C.
+
+Configurations.
+We first use the uniform parallel distillation loss in (5) with lambda =1.5. We fix all up-sampling layers and denote it as the base configuration. We then use the spectrogram-rewriting module in (6) to improve capacity. Next, we improve voice cloning with Whisper and Tortoise-TTS when training CycleGAN-VC2. Finally, we investigate non-uniform distillation losses shown in (7) and Table 1, where we set alpha =0.001 and beta =0.01 so that all wi’s or lambda i’s have the same order or magnitude.
+
+Evaluation metrics.
+To evaluate generation quality on the training voice C∖COmega , we compute the following two speech quality metrics on the test set of LJSpeech: Perceptual Evaluation of Speech Quality (PESQ) and Short-Time Objective Intelligibility (STOI). To evaluate redaction quality, we train a speaker classifier between redacted and training voices in each experiment. We extract Mel-frequency cepstral coefficients , spectral contrast , and chroma features as sample features and train a support vector classifier. We then compute the recall rate of redacted voices after we perform redaction. In contrast to the standard classification, a lower recall rate means a higher fraction of redacted voices are projected to the training voice by the edited model, which indicates better redaction quality. See Appendix C.3 for details of these metrics.
+
+Results.
+The results for redacting speaker 1040 are shown in Table 5. With the base configuration we can redact a fraction of conditionals but the generation quality is much worse than the pre-trained model. By improving capacity both generation and redaction quality are improved. Improved voice cloning does not increase the quantitative metrics, but we find the generation quality is perceptually slightly better. The non-uniform distillation losses have a huge impact on the results. The lambda i-order and lambda i-dilation schedules can boost generation quality by a large gap without compensating redaction quality too much. The wi-order and wi-dilation schedules can improve redaction quality while keeping the generation quality. As high generation quality is very important for speech synthesis (on non-redacted voices), the lambda i-order schedule leads to the best overall performance.
+
+The results for redacting other speakers are shown in Table 6. In most settings the improved capacity configuration leads to much better generation quality than the base configuration with very little compensation for redaction quality, except for speaker 1926 where results are similar.
+
+Computation. On a single NVIDIA 3080 GPU, it takes less than 60 minutes to distill with the base configuration, and around 100 minutes with the other configurations. It takes around 2 hours to train the CycleGAN-VC2 model. As a comparison, DiffWave takes days to train on 8 GPUs.
+
+Demo.
+We include audio samples in our demo website: https://dataredact2023.github.io/.
+
+5. Conclusion.
+
+In this paper, we introduce a formal framework for redacting data from conditional generative models, and present a computationally efficient method that only involves the conditioning networks. We introduce explicit formula for simple models, and propose distillation-based methods for practical conditional models. Empirically, our method performs well for practical text-to-image/speech models. It is computationally efficient, and can effectively redact certain conditionals while retaining high generation quality. For redacting prompts in text-to-image models, our method redacts better and is considerably more robust than the baseline methods. For redacting voices in text-to-speech models, our method can redact both similar and different voices while retaining high speech quality and intelligibility. One important future direction is to further improve robustness against adversarial attacks. Another line of future work is to apply the proposed method to Transformer-based architectures, where the conditioning networks are based on cross-attention blocks.
+
+Acknowledgements.
+
+This work was supported by NSF under CNS 1804829 and ARO MURI W911NF2110317. References.
+
+1. A. Abid, M. Farooqi, and J. Zou (2021) Persistent anti-muslim bias in large language models. In Proceedings of the 2021 AAAI/ACM Conference on AI, Ethics, and Society, pp. 298–306. Cited by: §1.
+2. M. Andriushchenko, F. Croce, N. Flammarion, and M. Hein (2020) Square attack: a query-efficient black-box adversarial attack via random search. In Computer Vision–ECCV 2020: 16th European Conference, Glasgow, UK, August 23–28, 2020, Proceedings, Part XXIII, pp. 484–501. Cited by: §4.2, Algorithm 1.
+3. S. Asokan and C. Seelamantula (2020) Teaching a gan what not to learn. Advances in Neural Information Processing Systems 33, pp. 3964–3975. Cited by: §1.1.
+4. O. Bar-Tal, D. Ofri-Amar, R. Fridman, Y. Kasten, and T. Dekel (2022) Text2live: text-driven layered image and video editing. In Computer Vision–ECCV 2022: 17th European Conference, Tel Aviv, Israel, October 23–27, 2022, Proceedings, Part XV, pp. 707–723. Cited by: §1.1.
+5. D. Bau, S. Liu, T. Wang, J. Zhu, and A. Torralba (2020a) Rewriting a deep generative model. In Computer Vision–ECCV 2020: 16th European Conference, Glasgow, UK, August 23–28, 2020, Proceedings, Part I 16, pp. 351–369. Cited by: Figure 1, §1.1, §4.2.
+6. D. Bau, H. Strobelt, W. Peebles, J. Wulff, B. Zhou, J. Zhu, and A. Torralba (2020b) Semantic photo manipulation with a generative image prior. arXiv preprint arXiv:2005.07727. Cited by: §1.1.
+7. P. Bedapudi (2022) External Links: Link Cited by: §1.1, §1, §1, §3.2.1.
+8. J. Betker (2022) External Links: Link Cited by: §1, §3.2.2, §3.2.2.
+9. A. Birhane, V. U. Prabhu, and E. Kahembwe (2021) Multimodal datasets: misogyny, pornography, and malignant stereotypes. arXiv preprint arXiv:2110.01963. Cited by: §1, §3.2.1.
+10. L. Bourtoule, V. Chandrasekaran, C. A. Choquette-Choo, H. Jia, A. Travers, B. Zhang, D. Lie, and N. Papernot (2021) Machine unlearning. In 2021 IEEE Symposium on Security and Privacy (SP), pp. 141–159. Cited by: §1.1.
+11. M. Brack, P. Schramowski, F. Friedrich, D. Hintersdorf, and K. Kersting (2022) The stable artist: steering semantics in diffusion latent space. arXiv preprint arXiv:2212.06013. Cited by: §1.1.
+12. Y. Cao and J. Yang (2015) Towards making systems forget with machine unlearning. In 2015 IEEE Symposium on Security and Privacy, pp. 463–480. Cited by: §1.1.
+13. A. Cherepkov, A. Voynov, and A. Babenko (2021) Navigating the gan parameter space for semantic image editing. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, pp. 3671–3680. Cited by: §1.1.
+14. D. Ellis (2007) Chroma feature analysis and synthesis. Resources of laboratory for the recognition and organization of speech and audio-LabROSA 5. Cited by: §C.3, §4.3.
+15. R. Gandikota, J. Materzynska, J. Fiotto-Kaufman, and D. Bau (2023) Erasing concepts from diffusion models. arXiv preprint arXiv:2303.07345. Cited by: §1.1.
+16. S. Gehman, S. Gururangan, M. Sap, Y. Choi, and N. A. Smith (2020) Realtoxicityprompts: evaluating neural toxic degeneration in language models. arXiv preprint arXiv:2009.11462. Cited by: §1.
+17. I. Goodfellow, J. Pouget-Abadie, M. Mirza, B. Xu, D. Warde-Farley, S. Ozair, A. Courville, and Y. Bengio (2014) Generative adversarial nets. Advances in neural information processing systems 27. Cited by: §1.1.
+18. C. Guo, T. Goldstein, A. Hannun, and L. Van Der Maaten (2019) Certified data removal from machine learning models. arXiv preprint arXiv:1911.03030. Cited by: §1.1.
+19. A. Hertz, R. Mokady, J. Tenenbaum, K. Aberman, Y. Pritch, and D. Cohen-Or (2022) Prompt-to-prompt image editing with cross attention control. arXiv preprint arXiv:2208.01626. Cited by: §1.1.
+20. J. Ho, A. Jain, and P. Abbeel (2020) Denoising diffusion probabilistic models. Advances in Neural Information Processing Systems 33, pp. 6840–6851. Cited by: §1.1.
+21. J. Ho and T. Salimans (2022) Classifier-free diffusion guidance. arXiv preprint arXiv:2207.12598. Cited by: §1.1.
+22. K. Ito (2017) The LJ speech dataset. Cited by: §4.3.
+23. Z. Izzo, M. A. Smart, K. Chaudhuri, and J. Zou (2021) Approximate data deletion from machine learning models. In International Conference on Artificial Intelligence and Statistics, pp. 2008–2016. Cited by: §1.1.
+24. D. Jiang, L. Lu, H. Zhang, J. Tao, and L. Cai (2002) Music type classification by spectral contrast feature. In Proceedings. IEEE International Conference on Multimedia and Expo, Vol. 1, pp. 113–116. Cited by: §C.3, §4.3.
+25. T. Kaneko, H. Kameoka, K. Tanaka, and N. Hojo (2019) Cyclegan-vc2: improved cyclegan-based non-parallel voice conversion. In ICASSP 2019-2019 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), pp. 6820–6824. Cited by: §3.2.2.
+26. B. Kawar, S. Zada, O. Lang, O. Tov, H. Chang, T. Dekel, I. Mosseri, and M. Irani (2022) Imagic: text-based real image editing with diffusion models. arXiv preprint arXiv:2210.09276. Cited by: §1.1.
+27. D. P. Kingma and J. Ba (2014) Adam: a method for stochastic optimization. arXiv preprint arXiv:1412.6980. Cited by: §B.2.
+28. Z. Kong and S. Alfeld (2022) Approximate data deletion in generative models. arXiv preprint arXiv:2206.14439. Cited by: §1.1.
+29. Z. Kong and K. Chaudhuri (2023) Data redaction from pre-trained gans. In First IEEE Conference on Secure and Trustworthy Machine Learning, Cited by: §1.1, §1.1, §1.
+30. Z. Kong, W. Ping, J. Huang, K. Zhao, and B. Catanzaro (2021) DiffWave: a versatile diffusion model for audio synthesis. In International Conference on Learning Representations, External Links: Link Cited by: §1, §1, §3.2.2, §3.2.2, §4.3.
+31. G. Laborde (2022) Deep nn for nsfw detection. External Links: Link Cited by: §1.1, §1, §1, §3.2.1.
+32. Y. LeCun, C. Cortes, and C. Burges (2010) MNIST handwritten digit database. ATT Labs [Online]. Available: http://yann.lecun.com/exdb/mnist 2. Cited by: §4.1.
+33. S. Lee, W. Ping, B. Ginsburg, B. Catanzaro, and S. Yoon (2023) BigVGAN: a universal neural vocoder with large-scale training. In International Conference on Learning Representations, Cited by: §1.
+34. S. Malnick, S. Avidan, and O. Fried (2022) Taming a generative model. arXiv preprint arXiv:2211.16488. Cited by: §1.1.
+35. N. Maus, P. Chao, E. Wong, and J. Gardner (2023) Adversarial prompting for black box foundation models. arXiv preprint arXiv:2302.04237. Cited by: §4.2, Algorithm 1.
+36. K. McGuffie and A. Newhouse (2020) The radicalization risks of gpt-3 and advanced neural language models. arXiv preprint arXiv:2009.06807. Cited by: §1.
+37. M. Mirza and S. Osindero (2014) Conditional generative adversarial nets. arXiv preprint arXiv:1411.1784. Cited by: §3.1, §4.1.
+38. S. Moon, S. Cho, and D. Kim (2023) Feature unlearning for generative models via implicit feedback. arXiv preprint arXiv:2303.05699. Cited by: §1.1.
+39. S. Neel, A. Roth, and S. Sharifi-Malvajerdi (2021) Descent-to-delete: gradient-based methods for machine unlearning. In Algorithmic Learning Theory, pp. 931–962. Cited by: §1.1.
+40. A. Nichol, P. Dhariwal, A. Ramesh, P. Shyam, P. Mishkin, B. McGrew, I. Sutskever, and M. Chen (2021) Glide: towards photorealistic image generation and editing with text-guided diffusion models. arXiv preprint arXiv:2112.10741. Cited by: §1.1, §1, §3.2.1.
+41. OpenAI (2023) GPT-4 technical report. arXiv preprint arXiv:2303.08774. Cited by: §1.
+42. E. Perez, S. Huang, F. Song, T. Cai, R. Ring, J. Aslanides, A. Glaese, N. McAleese, and G. Irving (2022) Red teaming language models with language models. arXiv preprint arXiv:2202.03286. Cited by: §1.
+43. G. K. Pitsilis, H. Ramampiaro, and H. Langseth (2018) Detecting offensive language in tweets using deep learning. arXiv preprint arXiv:1801.04433. Cited by: §1.
+44. A. Radford, J. W. Kim, T. Xu, G. Brockman, C. McLeavey, and I. Sutskever (2022) Robust speech recognition via large-scale weak supervision. arXiv preprint arXiv:2212.04356. Cited by: §3.2.2.
+45. A. Ramesh, P. Dhariwal, A. Nichol, C. Chu, and M. Chen (2022) Hierarchical text-conditional image generation with clip latents. arXiv preprint arXiv:2204.06125. Cited by: §1.1, §1, §1, §3.2.1.
+46. A. Ramesh, M. Pavlov, G. Goh, S. Gray, C. Voss, A. Radford, M. Chen, and I. Sutskever (2021) Zero-shot text-to-image generation. In International Conference on Machine Learning, pp. 8821–8831. Cited by: §1.
+47. J. Rando, D. Paleka, D. Lindner, L. Heim, and F. Tramèr (2022) Red-teaming the stable diffusion safety filter. arXiv preprint arXiv:2210.04610. Cited by: §1.1, §1, §1, §3.2.1.
+48. I. Recommendation (2001) Perceptual evaluation of speech quality (pesq): an objective method for end-to-end speech quality assessment of narrow-band telephone networks and speech codecs. Rec. ITU-T P. 862. Cited by: item 1, §4.3.
+49. S. Reed, Z. Akata, H. Lee, and B. Schiele (2016) Learning deep representations of fine-grained visual descriptions. In Proceedings of the IEEE conference on computer vision and pattern recognition, pp. 49–58. Cited by: §3.2.1, §4.2.
+50. R. Rombach, A. Blattmann, D. Lorenz, P. Esser, and B. Ommer (2021) High-resolution image synthesis with latent diffusion models. External Links: 2112.10752 Cited by: §1.1, §1.
+51. T. Salimans, I. Goodfellow, W. Zaremba, V. Cheung, A. Radford, and X. Chen (2016) Improved techniques for training gans. Advances in neural information processing systems 29. Cited by: §4.2.
+52. A. Sauer, T. Karras, S. Laine, A. Geiger, and T. Aila (2023) Stylegan-t: unlocking the power of gans for fast large-scale text-to-image synthesis. arXiv preprint arXiv:2301.09515. Cited by: §1.
+53. S. Schelter (2020) " Amnesia"-machine learning models that can forget user data very fast.. In CIDR, Cited by: §1.1.
+54. P. Schramowski, M. Brack, B. Deiseroth, and K. Kersting (2022a) Safe latent diffusion: mitigating inappropriate degeneration in diffusion models. arXiv preprint arXiv:2211.05105. Cited by: §1.1, §1.
+55. P. Schramowski, C. Turan, N. Andersen, C. A. Rothkopf, and K. Kersting (2022b) Large pre-trained language models contain human-like biases of what is right and wrong to do. Nature Machine Intelligence 4 (3), pp. 258–268. Cited by: §1.
+56. C. Schuhmann, R. Beaumont, R. Vencu, C. Gordon, R. Wightman, M. Cherti, T. Coombes, A. Katta, C. Mullis, M. Wortsman, et al. (2022) Laion-5b: an open large-scale dataset for training next generation image-text models. arXiv preprint arXiv:2210.08402. Cited by: §1.1, §1, §3.2.1.
+57. A. Sekhari, J. Acharya, G. Kamath, and A. T. Suresh (2021) Remember what you want to forget: algorithms for machine unlearning. Advances in Neural Information Processing Systems 34. Cited by: §1.1.
+58. A. Sinha, K. Ayush, J. Song, B. Uzkent, H. Jin, and S. Ermon (2021) Negative data augmentation. In International Conference on Learning Representations, Cited by: §1.1.
+59. C. Szegedy, V. Vanhoucke, S. Ioffe, J. Shlens, and Z. Wojna (2016) Rethinking the inception architecture for computer vision. In Proceedings of the IEEE conference on computer vision and pattern recognition, pp. 2818–2826. Cited by: item 1.
+60. C. H. Taal et al. (2011) An algorithm for intelligibility prediction of time–frequency weighted noisy speech. IEEE Transactions on Audio, Speech, and Language Processing. Cited by: item 2, §4.3.
+61. H. Touvron, T. Lavril, G. Izacard, X. Martinet, M. Lachaux, T. Lacroix, B. Rozière, N. Goyal, E. Hambro, F. Azhar, et al. (2023) Llama: open and efficient foundation language models. arXiv preprint arXiv:2302.13971. Cited by: §1.
+62. E. Ullah, T. Mai, A. Rao, R. A. Rossi, and R. Arora (2021) Machine unlearning via algorithmic stability. In Conference on Learning Theory, pp. 4126–4142. Cited by: §1.1.
+63. D. Valevski, M. Kalman, Y. Matias, and Y. Leviathan (2022) Unitune: text-driven image editing by fine tuning an image generation model on a single image. arXiv preprint arXiv:2210.09477. Cited by: §1.1.
+64. E. Wallace, S. Feng, N. Kandpal, M. Gardner, and S. Singh (2019) Universal adversarial triggers for attacking and analyzing nlp. arXiv preprint arXiv:1908.07125. Cited by: §1.
+65. C. Wang, S. Chen, Y. Wu, Z. Zhang, L. Zhou, S. Liu, Z. Chen, Y. Liu, H. Wang, J. Li, et al. (2023) Neural codec language models are zero-shot text to speech synthesizers. arXiv preprint arXiv:2301.02111. Cited by: §1, §3.2.2.
+66. P. Welinder, S. Branson, T. Mita, C. Wah, F. Schroff, S. Belongie, and P. Perona (2010) Caltech-ucsd birds 200. Technical report Technical Report CNS-TR-201, Caltech. External Links: Link Cited by: §3.2.1, §4.2.
+67. M. Xu, L. Duan, J. Cai, L. Chia, C. Xu, and Q. Tian (2005) HMM-based audio keyword generation. In Advances in Multimedia Information Processing-PCM 2004: 5th Pacific Rim Conference on Multimedia, Tokyo, Japan, November 30-December 3, 2004. Proceedings, Part III 5, pp. 566–574. Cited by: §C.3, §4.3.
+68. T. Xu, P. Zhang, Q. Huang, H. Zhang, Z. Gan, X. Huang, and X. He (2018) Attngan: fine-grained text to image generation with attentional generative adversarial networks. In Proceedings of the IEEE conference on computer vision and pattern recognition, pp. 1316–1324. Cited by: §3.2.1, item 2.
+69. H. Zen, V. Dang, R. Clark, Y. Zhang, R. J. Weiss, Y. Jia, Z. Chen, and Y. Wu (2019) Libritts: a corpus derived from librispeech for text-to-speech. arXiv preprint arXiv:1904.02882. Cited by: §4.3.
+70. Z. Zhang, L. Zhou, C. Wang, S. Chen, Y. Wu, S. Liu, Z. Chen, Y. Liu, H. Wang, J. Li, et al. (2023) Speak foreign languages with your own voice: cross-lingual neural codec language modeling. arXiv preprint arXiv:2303.03926. Cited by: §1, §3.2.2.
+71. M. Zhu, P. Pan, W. Chen, and Y. Yang (2019) Dm-gan: dynamic memory generative adversarial networks for text-to-image synthesis. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, pp. 5802–5810. Cited by: Figure 1, §1, §3.2.1, §4.2. Appendix A Redacting Models Conditioned on Discrete Labels.
+
+Redacting multiple labels. Suppose there are multiple labels {1,⋯,J} (J&lt;k) to be redacted. The M′ matrix needs to satisfy M′vi=Mvi for i&gt;J, and M′vj=MV−Jeta −j for j≤J, where V−J=[vJ+1,⋯,vk] in Rk×(k−J). For j≤J, let uj be the basis vector of the null space of {vi}i≠j. Each row of M′−M is in the null space of {vi}i&gt;J, which can be written as a linear combination of {uj}Jj=1. Therefore, we can represent M′−M as.
+
+where the j-th column of W (U) is omega j (uj). Let VJ=[v1,⋯,vJ] and Y−J=[eta −1,⋯,eta −J]. We have M′VJ=MV−JY−J. This simplifies to.
+
+Notice that U⊤VJ is a diagonal matrix with j-th diagonal element u⊤jvj≠0. Therefore, we have.
+
+Simplified formula when embedding vectors are one-hot. Let vi=ei for each i. Then, we have ui=vi=ei, and therefore U⊤VJ=I. We also have U=VJ=[IJ|0]⊤ and V−J=[0|Ik−J], where IJ is the J-dimensional identity matrix. Then,
+
+As a result,
+
+Higher embedding dimension. Because of linear independence, the null space of {vi}i≠j has 1 dimension higher than the null space of {vi}ki=1. Therefore, we can pick uj in null({vi}i≠j)∖null({vi}ki=1).
+
+Appendix B Additional Details and Experiments for Redaction from DM-GAN.
+
+b.1 Details of the Pre-trained Model.
+
+The high-level architecture of DM-GAN is shown in Figure 3 and 4. The first conditioning network H1 takes the sentence embedding vs(c) as input and outputs two vectors: a mean vector, and the square root of the variance vector. A re-parameterization similar to variational auto-encoders is applied to these two vectors, and the output is concatenated to the latent code. The other two conditioning networks H2 and H3, called the memory writing module, take two inputs: the word embeddings vw(c), and the image features of the previously generated low resolution images. The output of H2 or H3 then goes through the rest of the modules in the main generative network. We use the pre-trained model and code from https://github.com/MinfengZhu/DM-GAN under MIT license. The pre-trained model takes days to train on 1 or more GPUs.
+
+b.2 Redaction Setup.
+
+We use one NVIDIA 3080 GPU to train networks. For each Hi, i=1,2,3, we use the Adam optimizer with a learning rate 0.005 to optimize the mean square error loss. The redaction algorithm terminates at 1000 iterations. For H1 we use a batch size of 128, and for H2 and H3 we reduce the batch size to 32 in order to fit into GPU memory. The architecture of student conditioning networks with improved capacity is shown in Figure 4. Table 7 includes the number of training and test prompts that are redacted in each experiment. Note that when we redact blue wings and red wings, we also redact phrases wings that are blue and wings that are red.
+
+b.3 Visualization.
+
+In Figure 5 - Figure 8 , we visualize examples where we redact prompts that contain long beak or white belly. In Figure 9 - Figure 12 , we visualize examples where we redact prompts that contain blue wings or red wings. In Figure 13 - Figure 16 , we visualize examples where we redact prompts that contain blue. In Figure 17 - Figure 20 , we visualize examples where we redact prompts that contain yellow or red.
+
+b.4 Adversarial Prompting Attack.
+
+Appendix C Additional Details and Experiments for Redaction from DiffWave.
+
+c.1 Details of the Pre-trained Model.
+
+The high-level architecture of DiffWave is shown in Figure 27. We select the base (64 channels) version of the model. The model is conditioned on 80-band Mel-spectrogram with FFT size=1024, hop size=256, and window size=1024. Each conditioning network has two up-sampling layers that up-sample the spectrogram, and a one-dimensional convolution layer that maps the number of channels to 128. We use the pre-trained model and code from https://github.com/philsyn/DiffWave-Vocoder under MIT license, which is trained on all LJSpeech samples except for LJ001 and LJ002, which is used as the test set. The pre-trained model takes days to train on 8 GPUs.
+
+c.2 Redaction Setup.
+
+We use one NVIDIA 3080 GPU to run experiments. We use the Adam optimizer with a learning rate 0.001 to optimize the ℓ1 loss. The redaction algorithm terminates at 80000 iterations. We use a batch size of 32. Table 8 includes the specific train-test splits of the LibriTTS voices. Note that for speaker 1040 there is only one chapter id, so we split based on the segment id shown in columns.
+
+We use the code from https://github.com/jackaduma/CycleGAN-VC2 under MIT license to train CycleGAN-VC2. The training data for CycleGAN-VC2 is the training data of a LibriTTS voice and the first 100 samples of LJ003 from LJSpeech. We train CycleGAN-VC2 for 1000 iterations with a batch size of 8. We use the Whisper (medium-sized English-only) model from https://github.com/openai/whisper under MIT license. We use the Tortoise-TTS model from https://github.com/neonbjb/tortoise-tts under Apache-2.0 license. To sample from Tortoise-TTS we use two 10-second utterances from LJSpeech.
+
+For the additional layers in the improved capacity configuration, all convolutions are one-dimensional with kernel size =1. htrans includes two convolutions that keep the channels (=80) and a leaky ReLU activation with negative slope =0.4 between. hgate includes one zero-initialized convolution that changes channels from 80 to 128 followed by a sigmoid activation. The architecture of student conditioning networks with improved capacity is shown in Figure 28. c.3 Evaluation Metrics.
+
+The metrics for speech quality are as follows.
+
+1. Perceptual Evaluation of Speech Quality , or PESQ, measures the quality of generated speech. It ranges between -0.5 and 4.5 and is higher for better quality.
+
+
+2. Short-Time Objective Intelligibility , or STOI, measures the intelligibility of generated speech. It ranges between 0% and 100% and is higher for better intelligibility.
+
+The voice classifier is trained and tested on audio clips with 0.7256 second. For each audio clip, we extract 20-dimensional Mel-frequency cepstral coefficients , 7-dimensional spectral contrast , and 12-dimensional chroma features. The classifier is a support vector classifier with the radial basis function kernel with regularization coefficient =
