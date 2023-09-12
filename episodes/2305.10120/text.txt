@@ -1,0 +1,151 @@
+Selective Amnesia: A Continual Learning Approach to Forgetting in Deep Generative Models.
+
+Abstract.
+
+The recent proliferation of large-scale text-to-image models has led to growing concerns that such models may be misused to generate harmful, misleading, and inappropriate content. Motivated by this issue, we derive a technique inspired by continual learning to selectively forget concepts in pretrained deep generative models. Our method, dubbed Selective Amnesia, enables controllable forgetting where a user can specify how a concept should be forgotten. Selective Amnesia can be applied to conditional variational likelihood models, which encompass a variety of popular deep generative frameworks, including variational autoencoders and large-scale text-to-image diffusion models. Experiments across different models demonstrate that our approach induces forgetting on a variety of concepts, from entire classes in standard datasets to celebrity and nudity prompts in text-to-image models. Our code is publicly available at https://github.com/clear-nus/selective-amnesia.
+
+1. Introduction.
+
+Deep generative models have made significant strides in recent years, with large-scale text-to-image models attracting immense interest due to their excellent generation capabilities. Unfortunately, these models can also be misused to create realistic-looking images of harmful, discriminatory and inappropriate content . For instance, one could generate Deepfakes — convincing fake images — and inappropriate content involving real individuals (for example, nude celebrities) . A naïve approach to address this issue is to omit specific concepts or individuals from the training dataset. However, filtering datasets of billions of images is a challenge in itself. Moreover, it entails retraining the entire model from scratch each time a new concept is to be forgotten, which is costly in terms of compute and time. In this work, our goal is to retrain the model to only forget specific concepts, that is, to induce selective amnesia.
+
+Several efforts in this direction have been made in the field of data forgetting , as well as concept erasure in the context of text-to-image diffusion models . However, works in the former either focus on discriminative models, or require special partitioning of data and model during training. The few works in the latter nascent field of concept erasure target text-to-image diffusion models and work by exploiting specific design characteristics of these models. Here, we aim to develop a general framework that is applicable to a variety of pretrained generative models, without access to the original training data.
+
+Our key insight is that selective forgetting can be framed from the perspective of continual learning. Ironically, the focus in continual learning has been on preventing forgetting; typically, given parameters for task A, we would like to train the model to perform task B without forgetting task A, that is, theta A -> theta A,B. In our case, we have a model that is trained to generate A and B, and we would like the model to only generate B while forgetting A, that is, theta A,B -> theta B.
+
+In this work, we show that well-known methods in continual learning can be unified into a single objective function that can be used to train models to forget. Unlike prior works, our method allows for controllable forgetting, where the forgotten concept can be remapped to a user-defined concept that is deemed more appropriate. We focus our scope on conditional variational likelihood models, which includes popular deep generative frameworks, namely Variational Autoencoders (VAEs)  and Denoising Diffusion Probabilistic Models (DDPMs) . To demonstrate its generality, we apply our method, dubbed Selective Amnesia (SA) to datasets and models of varying complexities, from simple VAEs trained on MNIST, DDPMs trained on CIFAR10 and STL10, to the open-source Stable Diffusion  text-to-image model trained on a large corpus of internet data. Our results shows that SA causes generative models to forget diverse concepts such as discrete classes to celebrities and nudity in a manner that is customizable by the user.
+
+Our paper is structured as follows. We cover the relevant background and related works in Section 2. We introduce Selective Amnesia (SA) in Section 3, followed by in-depth experimental results in Section 4. Finally, we conclude in Section 5 by briefly discussing the limitations and broader impacts of our work.
+
+2. Background and Related Work.
+
+2.1 Variational Generative Models.
+
+Conditional Variational Autoencoders.
+
+Conditional Variational Autoencoders  are generative models of the form p(x,z|theta ,c)=p(x|theta ,c,z)p(z|theta ,c), where x is the data (for example, an image), c is the concept/class, and p(z|theta ,c) is a prior over the latent variables z. Due to the intractability of the posterior p(z|theta ,x,c), VAEs adopt an approximate posterior q(z|ϕ,x,c) and maximize the evidence lower bound (ELBO),
+
+Conditional Diffusion Models.
+
+Diffusion models  are a class of generative models that sample from a distribution through an iterative Markov denoising process. A sample xT is typically sampled from a Gaussian distribution and gradually denoised for T time steps, finally recovering a clean sample x0. In practice, the model is trained to predict the noise ϵ(xt,t,c|theta ) that must be removed from the sample xt with the following reweighted variational bound: ELBO(x|theta ,c)=∑Tt=1||ϵ(xt,t,c|theta )−ϵ||2, where xt=√¯alpha tx0+√1−¯alpha tϵ for ϵ∼N(0,I), ¯alpha t are constants related to the noise schedule in the forward noising process. Sampling from a conditional diffusion model can be carried out using classifier-free guidance .
+
+2.2 Continual Learning.
+
+The field of continual learning is primarily concerned with the sequential learning of tasks in deep neural networks, while avoiding catastrophic forgetting. A variety of methods have been proposed to tackle this problem, including regularization approaches , architectural modifications , and data replay . We discuss two popular approaches that will be used in our work: Elastic Weight Consolidation and Generative Replay.
+
+Elastic Weight Consolidation.
+
+Elastic Weight Consolidation (EWC)  adopts a Bayesian approach to model the posterior of the weights for accomplishing two tasks, DA and DB, given a model theta ∗ that has learnt DA. The Laplace approximation is applied to the posterior over the initial task DA, giving rise to a quadratic penalty that slows down learning of weights that are most relevant to the initial task. Concretely, the posterior is given by logp(theta |DA,DB)=logp(DB|theta )−lambda ∑iFi2(theta i−theta ∗i)2, where F is the Fisher information matrix (FIM) and lambda is a weighting parameter. In practice, a diagonal approximation Fi=Ep(D|theta ∗)[(∂∂theta ilogp(D|theta ))2] is adopted for computational efficiency. Fi can be viewed as a sensitivity measure of the weight theta i on the model’s output. For variational models, we modify the Fi to measure the sensitivity of theta i on the ELBO: Fi=Ep(x|theta ∗,c)p(c)[(∂∂theta iELBO(x|theta ,c))2].
+
+Generative Replay.
+
+Generative Replay (GR)  was proposed as a method where a generative model can be leveraged to generate data from previous tasks, and used to augment data from the current task in the training of a discriminative model. More generally, it motivates one to leverage generative models for continual learning, whereby without needing to store any of the previous datasets, a model can be trained on all tasks simultaneously, which prevents catastrophic forgetting.
+
+Our work leverages EWC and GR to train a model to sequentially forget certain classes and concepts. This is fundamentally different from the objectives of continual learning, which instead seeks to prevent forgetting. Additionally, most prior work on continual learning for generative models are applied to GANs , while our work is primarily concerned with variational models.
+
+2.3 Data Forgetting.
+
+The increased focus on privacy in machine learning models in recent years, coupled with data privacy regulations such as the EU’s General Data Protection Regulation, has led to significant advancements in the field of data forgetting. Data forgetting was first proposed in as a statistical query learning problem. Later work proposed a dataset sharding approach to allow for efficient data deletion by deleting only specific shards . Alternative methods define unlearning through information accessible directly from model weights , while proposed a variational unlearning method which relies on a posterior belief over the model weights. Our method only requires access to a trained model and does not require control over the initial training process or the original dataset, making it distinct from. In addition, earlier methods are designed for discriminative tasks such as classification  and regression , while we focus on deep generative models.
+
+2.4 Concept Erasure.
+
+Large-scale text-to-image models  can be misused to generate biased, unsafe, and inappropriate content . To tackle this problem, Safe Latent Diffusion (SLD)  proposes an inference scheme to guide the latent codes away from specific concepts, while Erasing Stable Diffusion (ESD)  proposes a training scheme to erase concepts from a model. Both methods leverage energy-based composition that is specific to the classifier-free guidance mechanism  of diffusion models. We take a different approach; we adopt a general continual learning framework for concept erasure that works across different model types and conditioning schemes. Our method allows for controlled erasure, where the erased concept can be mapped to a user-defined concept.
+
+3. Proposed Method: Selective Amnesia.
+
+Problem Statement.
+
+We consider a dataset D that can be partitioned as D=Df∪Dr={(x(n)f,c(n)f)}Nfn=1∪{(x(m)r,c(m)r)}Nrm=1, where Df and Dr correspond to the data to forget and remember respectively. The underlying distribution of D is a joint distribution given by p(x,c)=p(x|c)p(c). We further define the distribution over concepts/class labels as p(c)=∑i in f,rϕipi(c) where ∑i in f,rϕi=1. The two concept/class distributions are disjoint such that pf(cr)=0 where cr∼pr(c) and vice-versa. For ease of notation, we subscript distributions and class labels interchangeably, for example, pf(c) and p(cf).
+
+We assume access to a trained conditional generative model parameterized by theta ∗=argmaxtheta Ep(x,c)logp(x|theta ,c), which is the maximum likelihood estimate (MLE) of the dataset D. We would like to train this model such that it forgets how to generate Df|cf, while remembering Dr|cr. A key criteria is that the training process must not require access to D. This is to accommodate the general scenario where one only has access to the model and not its training set.
+
+A Bayesian Continual Learning Approach to Forgetting.
+
+We start from a Bayesian perspective of continual learning inspired by the derivation of Elastic Weight Consolidation (EWC) :
+
+For forgetting, we are interested in the posterior conditioned only on Dr,
+
+where we use logp(Df|theta )=logp(xf,cf|theta )=logp(xf|theta ,cf)+logp(cf) so that the conditional likelihood is explicit, and substitute logp(theta |Df,Dr) with the Laplace approximation of EWC. Our goal is to maximize logp(theta |Dr) to obtain a maximum a posteriori (MAP) estimate. Intuitively, maximizing Equation (1) lowers the likelihood logp(xf|theta ,cf), while keeping theta close to theta ∗.
+
+Unfortunately, direct optimization is hampered by two key issues. First, the optimization objective of Equation 1 does not involve using samples from Dr. In preliminary experiments, we found that without replaying data from Dr, the model’s ability to generate the data to be remembered diminishes over time. Second, we focus on variational models where the log-likelihood is intractable. We have the ELBO, but minimizing a lower bound does necessarily decrease the log-likelihood. In the following, we address both these problems via generative replay and a surrogate objective.
+
+3.1 Generative Replay Over Dr.
+
+Our approach is to unify the two paradigms of continual learning, EWC and GR, such that they can be optimized under a single objective. We introduce an extra likelihood term over Dr that corresponds to a generative replay term, while keeping the optimization over the posterior of Dr unchanged:
+
+A complete derivation is given in Appendix A.1. The term logp(theta ) corresponds to a prior over the parameters theta. Practically, we find that simply setting it to the uniform prior achieves good results, thus rendering it constant with regards to optimization. With the expectations written down explicitly, our objective becomes.
+
+As we focus on conditional generative models in this work, the expectations over p(x|c)pf(c) and p(x|c)pr(c) can be approximated by using conditional samples generated by the model prior to training. Similarly, the FIM is calculated using samples from the model. Thus, Equation 3 can be optimized without the original training dataset D. Empirically, we observe that the addition of the GR term improves performance when generating Dr after training to forget Df (see ablations in Section 4.1).
+
+3.2 Surrogate Objective.
+
+Similar to Equation 1, Equation 3 suggests that we need to minimize the log-likelihood of the data to forget Ex,c∼p(x|c)pf(c)[logp(x|theta ,c)]. With variational models, we only have access to the lower bound of the log-likelihood, but naively optimizing Equation 3 by replacing the likelihood terms with the standard ELBOs leads to poor results. Figure 2 illustrates samples from a VAE trained to forget the MNIST digit ‘0’; not only has the VAE failed to forget, but the sample quality of the other classes has also greatly diminished (despite adding the GR term).
+
+We propose an alternative objective that is guaranteed to lower the log-likelihood of Df, as compared to the original model parameterized by theta ∗. Rather than attempting to directly minimize the log-likelihood or the ELBO, we maximize the log-likelihood of a surrogate distribution of the class to forget, q(x|cf)≠p(x|cf). We formalize this idea in the following theorem.
+
+Theorem 1. Consider a surrogate distribution q(x|c) such that q(x|cf)≠p(x|cf). Assume we have access to the MLE optimum for the full dataset theta ∗=argmaxtheta Ep(x,c)[logp(x|theta ,c)] such that Ep(c)[DKL(p(x|c)||p(x|theta ∗,c)]=0. Define the MLE optimum over the surrogate dataset as theta q=argmaxtheta Eq(x|c)pf(c)[logp(x|theta ,c)]. Then the following inequality involving the expectations of the optimal models over the data to forget holds:
+
+Theorem 1 tells us that optimizing the surrogate objective argmaxtheta Eq(x|c)pf(c)[logp(x|theta ,c)] is guaranteed to reduce Ep(x|c)pf(c)[logp(x|theta ,c)], the problematic first term of Equation 3, from its original starting point theta ∗.
+
+Corollary 1. Assume that the MLE optimum over the surrogate, theta q=argmaxtheta Eq(x|c)pf(c)[logp(x|theta ,c)] is such that Epf(c)[DKL(q(x|c)||p(x|theta q,c)]=0. Then the gap presented in Theorem 1,
+
+Corollary 1 tells us that the greater the difference between q(x|cf) and p(x|cf), the lower the log-likelihood over Df we can achieve. For example, we could choose the uniform distribution as it is easy to sample from and is intuitively far from the distribution of natural images, which are highly structured and of low entropy. That said, users are free to choose q(x|cf), for example, to induce realistic but acceptable images, and we experiment with different choices in the Stable Diffusion experiments (Sec 4.2).
+
+Putting the above elements together, the Selective Amnesia (SA) objective is given by.
+
+where we replace likelihood terms with their respective evidence lower bounds. For variational models, maximizing the ELBO increases the likelihood, and we find the revised objective to perform much better empirically — Figure 2 (right) shows results of the revised objective when applied to the MNIST example, where we set q(x|cf) to a uniform distribution over the pixel values, U[0,1]. The model now forgets how to generate ‘0’, while retaining its ability to generate other digits.
+
+4. Experiments.
+
+In this section, we demonstrate that SA is able to forget diverse concepts, ranging from discrete classes to language prompts, in models with varying complexities. For discrete classes, we evaluate SA on MNIST, CIFAR10 and STL10. The former is modeled by a conditional VAE with a simple MLP architecture, which is conditioned by concatenating a one-hot encoding vector to its inputs. The latter two datasets are modeled by a conditional DDPM with the UNet architecture, which is conditioned using FiLM transformations  within each residual block. Class-conditional samples are generated with classifier-free guidance . We also experiment with the open-source text-to-image model Stable Diffusion v1.4 , where the model is conditioned on CLIP  text embeddings using the cross-attention mechanism. Further experimental details can be found in Appendix B.
+
+In addition to qualitative comparisons, we performed quantitative analyses using three types of metrics for the discrete classes:
+
+Image Quality Metrics.
+
+First, we evaluate the image quality of the classes to remember using standard metrics such as the Fréchet Inception Distance (FID), Precision, and Recall . Ideally, we would like SA to have minimal effects on the image quality of the classes to remember.
+
+Probability of Class to Forget.
+
+Second, using an external classifier, we evaluate generated samples from the class to forget to ensure that the class has been successfully erased. The probability of a class to forget is defined as Ep(x|theta ,cf)[Pϕ(y=cf|x)], where the expectation is over samples generated from our trained model, and Pϕ(y|x) is a pretrained classifier. If we choose q(x|cf) to be an uninformative distribution, such as the uniform distribution, this should approach 1/Nclasses(=1/10 for the datasets studied here) as the classifier becomes completely uncertain which class it belongs to.
+
+Classifier Entropy.
+
+This is the average entropy of the classifier’s output distribution given xf, defined as H(Pϕ(y|xf))=−Ep(x|theta ,cf)[∑iPϕ(y=ci|x)logPϕ(y=ci|x)]. When we choose q(x|cf) to be the uniform distribution, all class information in the generated xf should be erased. The entropy should therefore approach the theoretical maximum given by −∑10i=1110log110=2.30, as the classifier becomes maximally uncertain and assigns a probability of 1/10 to every outcome.
+
+4.1 MNIST, CIFAR10 and STL10 Results.
+
+In this experiment on MNIST, CIFAR10 and STL10, we attempt to forget the digit ‘0’ in MNIST and the ‘airplane’ class in CIFAR10 and STL10. We choose q(x|cf) to be a uniform distribution over the pixel values. In brief, the results suggest that SA has successfully induced forgetting for the relevant class, with minor degradation in image diversity of the classes to remember. Qualitative samples are shown in Figure 1, where it is clear that the classes to forget have been erased to noise, while the quality of the classes to remember remain visually indistinguishable from the original model. Additional samples are shown in Appendix D.1. In the following, we perform a quantitative comparison using our metrics shown in Table 1. First, we evaluate the information content left in the generated xf by examining the rows in Table 1 that are highlighted in blue. On MNIST, there is a 96.7% probability of classifying the samples of the ‘0’ class from the original model correctly, and correspondingly a low entropy in its distribution. However, after training with lambda =100, the probability drops to 5.8%, while the entropy closely approaches the theoretical maximum of 2.30, indicating that any information in the generated xf about the digit ‘0’ has been erased. We see a similar result for the CIFAR10 and STL10 diffusion models, where the entropy increases significantly after training, although it does not approach the maximum value as closely as the VAE.
+
+Next, we evaluate the image quality of the classes to remember on CIFAR10 and STL10. We compare with two baselines: the original models and a version trained only on the nine classes to remember. Surprisingly on CIFAR10, training with lambda =10 actually improves FID slightly, which a priori is unusual as the baselines should serve as natural upper-bounds on image quality. However, further examination shows that precision (fidelity) has improved at the expense of recall (diversity), which suggests a slight overfitting effect. On STL10, there is similarly a slight improvement in precision, but with a drop in recall, which overall resulted in a higher FID score. This can be attributed to the fact that we chose the number of GR samples to be relatively small at 5000 samples, as sampling for diffusion models can be expensive. We hypothesize that this can be alleviated by increasing the GR sample size, but we leave this for future investigations.
+
+Ablations.
+
+We conduct ablations on the lambda parameter and on the generative replay term in our objective function, using DDPM trained on CIFAR10. Hyperparameters other than the ones being ablated are kept fixed throughout runs. The results are highlighted in orange in Table 1. Starting with ablations on lambda , we see that when lambda =1, image fidelity as measured by FID and precision is significantly poorer than at larger values of lambda , showing that the FIM term is crucial in our training scheme. As lambda is increased, there is a drastic improvement in fidelity, which comes at a slight cost to diversity as measured by recall, although the changes are relatively minor across the tested range of lambda in [10,100]. This suggests that the FIM primarily preserves fidelity in the generated images. When comparing classifier entropy, we see that increments beyond lambda =10 decreases entropy further from the upper-bound, which indicate some information leakage to the forgotten samples being generated. Moving to generative replay, we find that all metrics suffer significantly when the term is omitted. In summary, our ablation studies show that generative replay is crucial in our method, and intermediate values lambda in [10,100] is sufficient for good performance.
+
+4.2 Case Study: Stable Diffusion.
+
+Forget Famous Persons.
+
+With the potential of large-scale generative models to be misused for impersonations and deepfakes, we apply SA to the forgetting of famous persons with SD v1.4. We leverage the fact that with language conditioning, we can choose q(x|cf) to be represented by images that are appropriate substitutes of the concept to forget. For instance, we attempt to forget the celebrities Brad Pitt and Angelina Jolie, thus we set cf = {“brad pitt"} and cf={“angelina jolie"} and represent q(x|cf) with images generated from SD v1.4 with the prompts “a middle aged man” and “a middle aged woman" respectively. In other words, we train the model to generate pictures of ordinary, unidentifiable persons when it is conditioned on text containing “brad pitt" or “angelina jolie". In this way, our model still generates semantically-relevant pictures of humans, as opposed to uniform noise if we had chosen the same q(x|cf) as the previous section.
+
+To demonstrate the control and versatility of SA, we conduct a second set of experiments where we map the celebrities to clowns, by setting q(x|cf) to images of ‘‘male clown" or ‘‘female clown" generated by SD v1.4 ([1] This demonstration is not meant to suggest that the celebrities are clowns. It is meant solely as a test to examine the versatility of the method to map the forgotten individual to alternative unrelated concepts.). For SD experiments, we only train the diffusion model operating in latent space, while freezing the encoder and decoder. Our qualitative results are shown in Figure 3, where we see that the results generalize well to a variety of prompts, generating realistic images of regular people and clowns in various settings. Additional samples are shown in Appendix D.2. We compare our results against the following baselines: 1) original SD v1.4, 2) SLD Medium  and 3) ESD-x , training only the cross-attention layers. We generate 20 images each of 50 random prompts containing “Brad Pitt” and “Angelina Jolie” and evaluate using the open-source GIPHY Celebrity Detector (GCD) . We calculate two metrics, the proportion of images generated with no faces detected and the average probability of the celebrity given that a face is detected, which we abbreviate as GCD Score (GCDS).
+
+SA generates the most images with faces, with significantly lower GCDS compared to SD v1.4 (See Table 2 in the appendix). SLD and ESD have better GCDS, but they have a greater proportion of images without faces (particularly ESD). Looking at the qualitative samples in Figure 4, ESD sometimes generates faceless and semantically unrelated images due to its uncontrollable training process. Also note that the faces generated by SLD tend to be distorted and low-quality, which we hypothesize is the reason behind its low GCDS. Visual inspection of the top-5 images in terms of GCDS shows that, despite the high scores, the images generated by SA would not be mistaken for Brad Pitt (with the possible exception of the middle image), and not more so than the other two methods. We provide a similar figure for Angelina Jolie in Figure 6, as well as analysis of the effects on celebrities other than the one being forgotten in Section E, both in the appendix.
+
+Forget Nudity.
+
+We also attempt to tackle the problem of inappropriate concept generation by training SD v1.4 to forget the concept of nudity. Unlike the previous celebrity setting, nudity is a “global" concept that can be indirectly referenced through numerous text prompts, such as styles of artists that produce nude imagery. As such, we train only the unconditional (non-cross-attention) layers in SD v1.4, as proposed in. In this scenario, we represent q(x|cf) with images generated from SD v1.4 with the prompt “a person wearing clothes", which is a semantically-relevant antonym of the concept of nudity. We let our prompts to forget be cf ={“nudity", “naked", “erotic", “sexual"} and sample them uniformly during training.
+
+We evaluate on the I2P dataset , which is a collection of 4703 inappropriate prompts. Our results are in Table 3 of the appendix, where we compare against SD v1.4, SLD, ESD-u (train unconditional layers only) as well as SD v2.1, which is trained on a dataset filtered for nudity. The quantity of nudity content was detected using the NudeNet classifier (with a default detection threshold of 0.6, which results in some false positives). Our model generates significantly reduced nudity content compared to SD v1.4 and SD v2.1. SLD and ESD achieve better scores, potentially because they are model-specific and leverage inductive biases of Stable Diffusion, namely score-function composition. Qualitative samples between the three approaches are shown in Figure 5 ([2] Note that we are deliberately conservative when censoring nudity in this paper. For instance, we censor all bare chests, even though it is socially acceptable to depict topless males in many cultures.). Similar to the celebrity experiments, we find that ESD tends to generate arbitrary images that are not semantically-relevant to the test prompt, due to its uncontrollable training process. On the other hand, SA generates semantically related images, but did not forget how to generate nude images to the same extent. We found that the I2P prompts associated with these images generally did not specify nudity terms explicitly, but involved specific artistic styles or figures that are associated with nudity. Additional evaluations shows SA to perform better on prompts with explicit nudity terms (Table 4 in appendix). Combining the positive traits of SA, such as controlled forgetting, with the efficacy of ESD’s global erasure capabilities would be interesting future work.
+
+5. Conclusion, Limitations, and Future Work.
+
+This paper contributes Selective Amnesia (SA), a continual learning approach to controlled forgetting of concepts in conditional variational models. Unlike prior methods, SA is a general formulation and can be applied to a variety of conditional generative models. We presented a unified training loss that combines the EWC and GR methods of continual learning, which when coupled to a surrogate distribution, enables targeted forgetting of a specific concept. Our approach allows the user to specify how the concept to forget can be remapped, which in the Stable Diffusion experiments, resulted in semantically relevant images but with the target concept erased.
+
+Limitations and Broader Impacts.
+
+We believe SA is a step towards greater control over deep generative models, which when left unconstrained, may be misused to generate harmful and misleading content (for example, deepfakes). Moving forward, SA can be improved to address current limitations. For example, the FIM calculation can be expensive, in particular for diffusion models as the ELBO requires a sum over T timesteps per sample. Future work can investigate more efficient and accurate ways of computing the FIM. Also, SA appears to be more proficient at removing “local” specific concepts, rather than “global” concepts (for example, nudity); more work is needed on general methods that work well for both types of information. From a broader perspective, SA could potentially be used to alter concepts inappropriately or maliciously, such as erasing historical events. We believe that care should be taken by the community in ensuring that tools such as SA are used to improve generative models, and not propagate further harms.
+
+Acknowledgements.
+
+This research/project is supported by the National Research Foundation Singapore and DSO National Laboratories under the AI Singapore Programme (AISG Award No: AISG2-RP-2020-017).
