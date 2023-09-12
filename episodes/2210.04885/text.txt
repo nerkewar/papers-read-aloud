@@ -1,0 +1,88 @@
+What the DAAM: Interpreting Stable Diffusion Using Cross Attention.
+
+Abstract.
+
+Large-scale diffusion neural networks represent a substantial milestone in text-to-image generation, with some performing similar to real photographs in human evaluation. However, they remain poorly understood, lacking explainability and interpretability analyses, largely due to their proprietary, closed-source nature. In this paper, to shine some much-needed light on text-to-image diffusion models, we perform a text–image attribution analysis on Stable Diffusion, a recently open-sourced large diffusion model. To produce pixel-level attribution maps, we propose DAAM, a novel method based on upscaling and aggregating cross-attention activations in the latent denoising subnetwork. We support its correctness by evaluating its unsupervised semantic segmentation quality on its own generated imagery, compared to supervised segmentation models. We show that DAAM performs strongly on COCO caption-generated images, achieving an mIoU of 61.0, and it outperforms supervised models on open-vocabulary segmentation, for an mIoU of 51.5. We further find that certain parts of speech, like punctuation and conjunctions, influence the generated imagery most, which agrees with the prior literature, while determiners and numerals the least, suggesting poor numeracy. To our knowledge, we are the first to propose and study word–pixel attribution for large-scale text-to-image diffusion models. Our code and data are at https://github.com/castorini/daam.
+
+Raphael Tang,1 Akshat Pandey,1 Zhiying Jiang,2 Gefei Yang,1 Karun Kumar,1Jimmy Lin,2 Ferhan Ture1.
+1Comcast Applied AI 2University of Waterloo.
+1 2.
+
+stable diffusion, explainable AI, diffusion model attribution.
+
+1. Introduction.
+
+Diffusion neural networks trained on billions of image–caption pairs represent the state of the art in text-to-image generation , some achieving realism comparable to actual photographs in human evaluation. Google’s Imagen, for example, produces images rated as more photorealistic than are real pictures up to 39.2–43.6% of the time , outperforming OpenAI’s DALL-E 2  in zero-shot text-to-image generation. However, despite their quality and popularity, the dynamics of their image synthesis process remain undercharacterized. Citing ethical concerns, these organizations have restricted the general public from using the models and their weights, preventing effective white-box (or even blackbox) analysis. To overcome this barrier, Stability AI recently open-sourced Stable Diffusion , a 1.1 billion-parameter latent diffusion model pretrained and fine-tuned on the LAION 5-billion image dataset .
+
+Given this opportune development, we probe Stable Diffusion to provide some much-desired insight into large diffusion models. We specialize in text-to-image attribution, our central research question being, “Which parts of a generated image does an input word influence most?”
+That is, we seek to produce a two-dimensional attribution map across the synthesized image for each word in the input prompt. As a byproduct, answering this also yields an unsupervised semantic segmentation technique for synthetic images, through extracting and attributing all nouns in the input. For example, given the phrase, “Strawberries next to teapots,” we can construct pixel-level maps for “strawberries” and “teapots.”
+
+To derive these maps, we dissect the denoising autoencoder in diffusion models, where most of the synthesis occurs. In this subnetwork, attention mechanisms cross-contextualize text embeddings with coordinate-aware latent representations  of the image, outputting scores for each token–image patch pair. Attention scores lend themselves readily to interpretation  since they are already normalized in [0,1], an inherent benefit for us. Thus, for pixel-wise attribution, we propose to aggregate these scores over the spatiotemporal dimensions and upscale them across the final image—see Figure 1 for an example output. We call our method diffusion attentive attribution maps, or DAAM for short.
+
+For evaluation, we generate images alongside DAAM maps using image captions, manually annotate object segments, then compare DAAM maps with the annotated segments. We show that, without explicit supervision, DAAM attains strong baseline quality on limited-vocabulary semantic segmentation and outperforms supervised, closed-vocabulary models on open-domain segmentation. We further apply DAAM to characterize pixel attribution for various parts of speech, finding that punctuation and conjunctions influence more of the image, while determiners and numerals the opposite, which suggests poor numeracy.
+
+In summary, our contributions are as follows: (1) we propose a novel attribution method for large diffusion models, targeted at measuring which parts of the generated image the input words influence most; (2) we are the first to derive and evaluate an unsupervised open-vocabulary semantic segmentation approach for generated images; and (3) we provide new insight into how part of speech relates to the images.
+
+2. Our Approach.
+
+2.1 Preliminaries.
+
+Latent diffusion models  are a class of denoising generative models that are trained to synthesize high-fidelity images from random noise through a gradual denoising process, optionally conditioned on text. They generally comprise three components: a deep language model like CLIP  for producing word embeddings; a variational autoencoder (VAE) which encodes and decodes latent vectors for images; and a time-conditional U-Net  for gradually denoising latent vectors. To generate an image, we initialize the latent vectors to random noise, feed in a conditioning text prompt, then iteratively denoise the latent vectors with the U-Net and decode the final vector into an image with the VAE.
+
+Formally, given an image, the VAE encodes it as a latent vector ℓt0 in Rd. Define a forward “noise injecting” Markov chain.
+p(ℓti|ℓti−1):=N(ℓti;√1−alpha tiℓt0,alpha tiI) where {alpha ti}Ti=1 is defined following a schedule so that p(ℓtT) is approximately zero-mean isotropic. The corresponding denoising reverse chain is then parameterized as.
+
+for some denoising neural network ϵtheta (ℓ,t) with parameters theta. Intuitively, the forward process iteratively adds noise to some signal at a fixed rate, while the reverse process, equipped with a neural network, removes noise until recovering the signal. To train the network, given caption–image pairs, we optimize.
+
+where {zeta i}Ti=1 are constants computed as zeta i:=1−∏ij=1(1−alpha j). The objective is a reweighted form of the evidence lower bound (ELBO) for score matching . To generate a latent vector, we initialize ^ℓtT as Gaussian noise and iterate.
+
+In practice, we apply various optimizations to improve the convergence of the above step, like modeling it as an ODE , but this definition suffices for us. We can additionally condition the latent vectors on text and pass word embeddings X:=[x1;⋯;xlW] to ϵtheta (ℓ,t;X). Finally, we use the VAE decoder to decode the denoised latent ^ℓt0 to an image.
+
+2.2 Diffusion Attentive Attribution Maps.
+
+Given a large-scale latent diffusion model for text-to-image synthesis, which parts of a generated image does each word influence most? Attribution approaches in computer vision are primarily perturbation- and gradient-based , where saliency maps are either constructed from the first derivative of the output with respect to the input, or from input perturbation to see how the output changes. Unfortunately, gradient methods prove intractable from needing a backpropagation pass for every pixel for all T time steps, and perturbation created very different imagery in our pilot experiments. Instead, we extend analyses from natural language processing, where attention was found to indicate attribution .
+
+We turn our attention to the denoising network ϵtheta (ℓ,t;X) responsible for the synthesis. While it can take any form, U-Nets remain the popular choice  for their strong image segmentation ability. They consist of a series of downsampling convolutional blocks, each of which preserves some local context, followed by upsampling deconvolutional blocks, which restore the original input size to the output. Specifically, given a 2D latent ℓt in Rh×w, the downsampling blocks output a series of vectors {h↓i,t}Ki=1, where h↓i,t in R⌈hci⌉×⌈wci⌉ for some c&gt;1. The upsampling blocks then iteratively upscale h↓K,t to {h↑i,t}0i=K−1 in R⌈hci⌉×⌈wci⌉. To condition these representations on word embeddings, researchers  use cross-attention layers.
+
+where F(i)↓t in R⌈hci⌉×⌈wci⌉×lW and Wk, Wq, and Wv are projection matrices. The same attention mechanism applies when upsampling h↑i. For brevity, we denote the respective attention score arrays as F(i)↓t and F(i)↑t, and we implicitly broadcast matrix multiplications as per NumPy convention .
+
+Spatiotemporal aggregation.
+F(i)↓t[x,y,k] is normalized to [0,1] and directly relates the importance of the kth word to intermediate coordinate (x,y) for the ith downsampling block. Due to the fully convolutional nature of U-Net (and the VAE), the intermediate coordinates locally map to a surrounding square receptive field in the final image. The scores thus describe the importance of each word toward that patch in the image. However, different layers produce heat maps with different scales, middle layers being the most coarse (for example, h↓K,t and h↑K−1,t), hence requiring spatial normalization to create a single heat map. To do this, we upscale all intermediate attention score arrays to the original image size using distribution-preserving deconvolutions.
+
+for all 1≤a≤ci and 1≤b≤ci, where is the transposed convolution operator with stride ci and weight W(i) in Rci×ci, and [:,:,k] denotes taking a slice across the height and width dimensions given k. Thus, A(i)↓k,t has size Rh×w for all blocks i and words k, with the relative intensity preserved linearly. We can also apply a bicubic kernel for smoother maps. We derive the upsampling blocks’ maps A(i)↑k,t similarly. Finally, to produce a single heat map for the kth word, we sum over both the layers and the time dimension, collecting contributions across the generative iterations from Eqn. (3):
+
+Since DRk is positive and scale normalized (summing normalized values preserves linear scale), we can visualize it as a soft heat map, with higher values having greater attribution. To generate a hard, binary heat map (either a pixel is influenced or not), we can threshold DRk as.
+
+where I(⋅) is the indicator function and tau in [0,1]. See Figure 2 for an end-to-end illustration of DAAM.
+
+3. Experiments.
+
+3.1 Attribution Analysis.
+
+We first assess the veracity of DAAM as a word–pixel attribution method. For Stable Diffusion, we set classifier guidance to the default 7.5 and use 50 inference steps with PNDM . We then synthesize one set of images using the validation set of the COCO image captions dataset , representing realistic prompts, and another set by randomly swapping nouns in the same set (holding the vocabulary fixed), representing unrealistic texts. We name the two respective sets “COCO-Gen” and “Unreal-Gen,” each with 150 prompt–image pairs. To build ground-truth attribution maps, we extract all countable nouns from the prompts, then manually segment the instance of each noun in the generated image, if it exists (Figure 3).
+
+To compute binary DAAM segmentation masks, we use Eqn. 8 with various thresholds tau in {0.3,0.4,0.5}, for each noun in the ground truth. We refer to these methods as DAAM-⟨tau ⟩, for example, DAAM-0.3. We also evaluate semantic segmentation models trained explicitly on COCO, like Mask R-CNN  with a ResNet-101 backbone , QueryInst  with ResNet-101-FPN , and Mask2Former  with Swin-S , all implemented in the MMDetection library . As is standard in semantic segmentation , we compute the final mean intersection over union (mIoU) over the prediction–ground truth mask pairs. We denote mIoU80 when restricted to the 80 classes that the supervised baselines were trained on and mIoU∞ as the mIoU without class restriction.
+
+Results.
+We present results in Table 1. As a sanity check, we compare to randomly segmenting 50% of the image for each word (row 4); unsurprisingly, this performs worst. As for tau , 0.4 works best on all splits, though it’s not too sensitive (±2–5 points). The supervised models (rows 1–3) are constrained to COCO’s 80 classes (the labels for the segmentation task, for example, “cat,” “cake”), while our unsupervised method (rows 5–7) is open vocabulary; thus, DAAM outperforms them by 21–27 points in mIoU∞ and underperforms by 6–26 points in mIoU80. Still, DAAM forms a strong baseline of 53.7–61.0 mIoU80, which is aesthetically acceptable for visualization.
+
+On Unreal-Gen, DAAM improves in mIoU, perhaps from the scrambled nouns increasing semantic contrast (for example, “fox jumps over dog” ↦ “cow jumps over moon”) and hence “separability” in the attention maps. On the other hand, the supervised methods worsen, likely from the unrealistic imagery being semantically out of domain. Overall, we conclude that DAAM effectively constructs word–image attribution maps.
+
+3.2 Part-of-Speech Analysis.
+
+Our attribution analysis focuses on nouns only, out of necessity to compare with semantic segmentation models. In this section, we characterize attribution patterns for other parts of speech, like adjectives and verbs, as well as punctuation. Toward this, we generate 500 images by randomly picking captions from COCO, constructing DAAM maps for every token. We group words by part-of-speech (POS), extracted by spaCy , then compute the average intensity of each group’s DAAM maps, defined as the proportion of the image that DItau k covers for tau =0.4, the best value in the last section.
+
+Results.
+In Figure 5, we plot per-group average intensities for numerals (NUM), determiners (DET), coordinating conjunctions (CCONJ), punctuation (PUNCT), nouns, adverbs, verbs, adpositions, adjectives, and pronouns. We find two outliers at each extreme: numerals and determiners on the far left, their maps covering 16–19% of the image on average; and coordinating conjunctions and punctuation the far right, covering 37–44%. All other POS tags fall between 28–32%.
+
+Determiners have low coverage possibly because they add little visuals, for example, “a dog” vs. “dog.” In the case of numerals, however, we conjecture that the low coverage arises from poor numeracy in Stable Diffusion, which often generates the wrong number of objects, as shown in Section 3.3. This likely arises from picking CLIP as the text encoder, which is known to suffer at numeracy . On the other hand, coordinating conjunctions and punctuation have high coverage, the former from arranging objects and phrases, which could be a large portion of the image. As for punctuation, we hypothesize that punctuation aggregates information and modulate the image representation globally, as found in previous works .
+
+3.3 Interpretability Case Studies.
+
+First, we present an analysis of a numeracy failure case in Figure 4, where Stable Diffusion incorrectly generates four laptops instead of two. We observe that the attribution maps reflect the laptops and the round tables (columns 2–4), but they attribute nothing for “two,” suggesting a lack of attention to that word and numerals in general. This case study agrees with our findings from Section 3.2, where we show that numerals attain the least attribution across the images.
+
+Second, we visualize adjectives–see right subfigure. The diffusion model strongly localizes “angry” and “bald” to their respective facial features, with “angry” attending to the furrowed brow and frown, and “bald” to the bare scalp. In both case studies, DAAM provides correct segments for all objects.
+
+4. Conclusions and Future Work.
+
+In this paper, we present a word–pixel attribution method for text-to-image diffusion models. We apply our method to Stable Diffusion, evaluating the resulting maps using an semantic segmentation task, where we achieve strong baseline quality relative to supervised models and superiority in open-vocabulary segmentation. We find that punctuation and conjunctions attend broadly, while numerals and determiners attend little, possibly due to drawbacks in the text encoder. One promising line of future work is to extend DAAM to work in an unsupervised manner on open-vocabulary semantic segmentation on real images .

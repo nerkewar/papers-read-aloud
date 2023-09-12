@@ -35,6 +35,23 @@
     <podcast:locked owner="sables-probe-0i@icloud.com">no</podcast:locked>
     <podcast:medium>podcast</podcast:medium>
     <item>
+        <title>FastComposer: Tuning-Free Multi-Subject Image Generation with Localized Attention</title>
+        <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2305.10431</guid>
+        <description>
+        <![CDATA[<p>Diffusion models excel at text-to-image generation, especially in subject-driven generation for personalized images. However, existing methods are inefficient due to the subject-specific fine-tuning, which is computationally intensive and hampers efficient deployment. Moreover, existing methods struggle with multi-subject generation as they often blend features among subjects. We present FastComposer which enables efficient, personalized, multi-subject text-to-image generation without fine-tuning. FastComposer uses subject embeddings extracted by an image encoder to augment the generic text conditioning in diffusion models, enabling personalized image generation based on subject images and textual instructions with only forward passes. To address the identity blending problem in the multi-subject generation, FastComposer proposes cross-attention localization supervision during training, enforcing the attention of reference subjects localized to the correct regions in the target images. Naively conditioning on subject embeddings results in subject overfitting. FastComposer proposes delayed subject conditioning in the denoising step to maintain both identity and editability in subject-driven image generation. FastComposer generates images of multiple unseen individuals with different styles, actions, and contexts. It achieves 300×-2500× speedup compared to fine-tuning-based methods and requires zero extra storage for new subjects. FastComposer paves the way for efficient, personalized, and high-quality multi-subject image creation. Code, model, and dataset are available here.</p>]]>
+        </description>
+        <pubDate>Mon, 11 Sep 2023 21:41:07 +0000</pubDate>
+        <enclosure
+        url="https://nerkewar.github.io/papers-read-aloud/episodes/2305.10431/audio.mp3" type="audio/mpeg" />
+        <itunes:author>nerkewar</itunes:author>
+        <itunes:explicit>No</itunes:explicit>
+        <itunes:episodeType>Full</itunes:episodeType>
+        <itunes:episode>13</itunes:episode>
+        <itunes:keywords></itunes:keywords>
+        <itunes:season>1</itunes:season>
+        <podcast:episode>13</podcast:episode>
+    </item>
+    <item>
         <title>Key-Locked Rank One Editing for Text-to-Image Personalization</title>
         <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2305.01644</guid>
         <description>
