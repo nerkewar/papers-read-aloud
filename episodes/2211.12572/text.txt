@@ -1,0 +1,173 @@
+Plug-and-Play Diffusion Features for Text-Driven Image-to-Image Translation.
+
+Abstract.
+
+Large-scale text-to-image generative models have been a revolutionary breakthrough in the evolution of generative AI, allowing us to synthesize diverse images that convey highly complex visual concepts. However, a pivotal challenge in leveraging such models for real-world content creation tasks is providing users with control over the generated content. In this paper, we present a new framework that takes text-to-image synthesis to the realm of image-to-image translation – given a guidance image and a target text prompt as input, our method harnesses the power of a pre-trained text-to-image diffusion model to generate a new image that complies with the target text, while preserving the semantic layout of the guidance image. Specifically, we observe and empirically demonstrate that fine-grained control over the generated structure can be achieved by manipulating spatial features and their self-attention inside the model. This results in a simple and effective approach, where features extracted from the guidance image are directly injected into the generation process of the translated image, requiring no training or fine-tuning. We demonstrate high-quality results on versatile text-guided image translation tasks, including translating sketches, rough drawings and animations into realistic images, changing of the class and appearance of objects in a given image, and modifications of global qualities such as lighting and color.
+
+![Image](https://media.arxiv-vanity.com/render-output/7213331/x1.png)
+
+1. Introduction.
+
+With the rise of text-to-image foundation models – billion-parameter models trained on a massive amount of text-image data, it seems that we can translate our imagination into high-quality images through text. While such foundation models unlock a new world of creative processes in content creation, their power and expressivity come at the expense of user controllability, which is largely restricted to guiding the generation solely through an input text. In this paper, we focus on attaining control over the generated structure and semantic layout of the scene – an imperative component in various real-world content creation tasks, ranging from visual branding and marketing to digital art. That is, our goal is to take text-to-image generation to the realm of text-guided Image-to-Image (I2I) translation, where an input image guides the layout (for example, the structure of the horse in Figure 1), and the text guides the perceived semantics and appearance of the scene (for example, “robot horse” in Figure 1).
+
+A possible approach for achieving control of the generated layout is to design text-to-image foundation models that explicitly incorporate additional guiding signals, such as user-provided masks . For example, recently Make-A-Scene  trained a text-to-image model that is also conditioned on a label segmentation mask, defining the layout and the categories of objects in the scene. However, such an approach requires an extensive compute as well as large-scale text-guidance-image training tuples, and can be applied at test-time to these specific types of inputs. In this paper, we are interested in a unified framework that can be applied to versatile I2I translation tasks, where the structure guidance signal ranges from artistic drawings to photorealistic images (see Figure 1). Our method does not require any training or fine-tuning, but rather leverages a pre-trained and fixed text-to-image diffusion model .
+
+Specifically, we pose the fundamental question of how structure information is internally encoded in such a model. We dive into the intermediate spatial features that are formed during the generation process, empirically analyze them, and devise a new framework that enables fine-grained control over the generated structure by applying simple manipulations to spatial features inside the model. Specifically, spatial features and their self-attentions are extracted from the guidance image, and are directly injected into the text-guided generation process of the target image. We demonstrate that our approach is not only applicable in cases where the guidance image is generated from text, but also for real-world images that are inverted into the model.
+
+Our approach of operating in the space of diffusion features is related to Prompt-to-Prompt (P2P) , which recently observed that by manipulating the cross-attention layers, it is possible to control the relation between the spatial layout of the image to each word in the text. We demonstrate that fine-grained control over the generated layout is difficult to achieve solely from the interaction with a text. Intuitively, since the cross attention is formed by the association of spatial features to words, it allows to capture rough regions at the object level, yet localized spatial information that is not expressed in the source text prompt (for example, object parts) is not guaranteed to be preserved by P2P. Instead, our method focuses only on spatial features and their self-affinities – we show that such features exhibit high granularity of spatial information, allowing us to control the generated structure, while not restricting the interaction with the text. Our method outperforms P2P in terms of structure preservation and is superior in working with real guidance images.
+
+To summarize, we make the following key contributions:
+(i) We provide new empirical insights about internal spatial features formed during the diffusion process.
+(ii) We introduce an effective framework that leverages the power of pre-trained and fixed guided diffusion, allowing to perform high-quality text-guided I2I translation without any training or fine-tuning.
+(iii) We show, both quantitatively and qualitatively that our method outperforms existing state-of-the-art baselines, achieving significantly better balance between preserving the guidance layout and deviating from its appearance.
+
+2. Related Work.
+
+Image-to-image translation.
+
+Image-to-Image (I2I) translation is aimed at estimating a mapping of an image from a source domain to a target domain, while preserving the domain-invariant characteristics of the input image, for example, objects’ structure or scene layout. From classical to modern data-driven methods, numerous visual problems have been formulated and tackled as an I2I task (for example, ). Seminal deep-learning-based methods have proposed various GAN-based frameworks to encourage the output image to comply with the distribution of the target domain . Nevertheless, these methods require datasets of example images from both source and target domains, and often require training from scratch for each translation task (for example, horse-to-zebra, day-to-night, summer-to-winter). Other works utilize pre-trained GANs by performing the translation in its latent space . Several methods have also considered the task of zero-shot I2I by training a generator on a single source-target image pair example . With the advent of unconditional image diffusion models, several methods have been proposed to adopt or extend them for various I2I tasks. In this paper, we consider the task of text-guided image-to-image translation where the target domain is not specified through a dataset of images but rather via a target text prompt. Our method is zero-shot, does not require training and is applicable to versatile I2I tasks.
+
+Text-guided image manipulation.
+
+With the tremendous progress in language-vision models, a surge of methods have been proposed to perform various types of text-driven image edits. Various methods have proposed to combine CLIP , which provides a rich and powerful joint image-text embedding space, with a pre-trained unconditional image generator, for example, a GAN  or a diffusion model . For example, DiffusionCLIP  uses CLIP to fine-tune a diffusion model to perform text guided manipulations. Concurrent to our work, uses CLIP and semantic losses of  to guide a diffusion process to perform I2I translation. Aiming to edit the appearance of objects in real-world images, Text2LIVE  trains a generator on a single image-text pair, without additional training data; thus, avoiding the trade-off, inherent to pre-trained generators, between satisfying the target edit and maintaining high-fidelity to the original content. While these methods have demonstrated impressive text-guided semantic edits, there is still a gap between the generative prior that is learned solely from visual data (typically on specific domains or ImageNet data), and the rich CLIP text-image guiding signal that has been learned from much broader and richer data. Recently, text-to-image generative models have closed this gap by directly conditioning image generation on text during training. These models have demonstrated unprecedented capabilities in generating high-quality and diverse images from text, capturing complex visual concepts (for example, object interactions, geometry, or composition). Nevertheless, such models offer little control over the generated content. This creates a great interest in developing methods to adopt such unconstrained text-to-image models for controlled content creation.
+
+Several concurrent methods have taken first steps in this direction, aiming to influence different properties of the generated content . DreamBooth  and Textual Inversion  share the same high-level goal of “personalizing” a pre-trained text-to-image diffusion model given a few user-provided images. Our method also leverages a pre-trained text-to-image diffusion model to achieve our goal, yet does not involve any training or fine-tuning. Instead, we devise a simple framework that intervenes in the generation process by directly manipulating the spatial features.
+
+As discussed in Section 1, our methodological approach is related to Prompt-to-Prompt , yet our method offers several key advantages: (i) enables fine-grained control over the generated shape and layout, (ii) allows to use arbitrary text-prompts to express the target translation; in contrast to P2P that requires word-to-word alignment between a source and target text prompts, (iii) demonstrates superior performance of real-world guidance images.
+
+Lastly, SDEdit  is another method that applies edits on user provided images using free text prompts. Their method noises the guidance image to an intermediate diffusion step, and then denoises it conditioned on the input prompt. This simple approach leads to impressive results, yet exhibit a tradeoff between preserving the guidance layout and fulfilling the target text. We demonstrate that our method significantly outperforms SDEdit, providing better balance between these two ends.
+
+3. Preliminary.
+
+Diffusion models  are probabilistic generative models in which an image is generated by progressively removing noise from an initial Gaussian noise image, xT∼N(0,I). These models are founded on two complementary random processes. the forward process, in which Gaussian noise is progressively added to a clean image, x0:
+
+where z∼N(0,I) and {alpha t} are the noise schedule.
+
+The backward process is aimed at gradually denoising xT, where at each step a cleaner image is obtained. This process is achieved by a neural network ϵtheta (xt,t) that predicts the added noise z. Once trained, each step of the backward process consists of applying ϵtheta to the current xt, and adding a Gaussian noise perturbation to obtain a cleaner xt−1. Diffusion models are rapidly evolving and have been extended and trained to progressively generate images conditioned on a guiding signal ϵtheta (xt,y,t), for example, conditioning the generation on another image , class label , or text .
+
+In this work, we leverage a pre-trained text-conditioned Latent Diffusion Model (LDM), a.k.a Stable Diffusion , in which the diffusion process is applied in the latent space of a pre-trained image autoencoder. The model is based on a U-Net architecture  conditioned on the guiding prompt P. Layers of the U-Net comprise a residual block, a self-attention block, and a cross-attention block, as illustrated in Figure 2 (b). The residual block convolve image features ϕl−1t from the previous layer l−1 to produce intermediate features flt. In the self-attention block, features are projected into queries, qlt, keys, klt, and values, vlt, and the output of the block is given by:
+
+This operation allows for long-range interactions between image features. Finally, cross-attention is computed between the spatial image features and the token embedding of the text prompt P.
+
+4. Method.
+
+Given an input guidance image IG and a target prompt P, our goal is to generate a new image I∗ that complies with P and preserves the structure and semantic layout of IG. We consider StableDiffusion , a state-of-the-art pre-trained and fixed text-to-image LDM model, denoted by ϵtheta (xt,P,t). This model is based on a U-Net architecture, as illustrated in Figure 2 and discussed in Section 3. Our key finding is that fine-grained control over the generated structure can be achieved by manipulating spatial features inside the model during the generation process. Specifically, we observe and empirically demonstrate that: (i) spatial features extracted from intermediate decoder layers encode localized semantic information and are less affected by appearance information, and (ii) the self-attention, representing the affinities between the spatial features, allows to retain fine layout and shape details.
+
+Based on our findings, we devise a simple framework that extracts features from the generation process of the guidance image IG and directly injects them along with P into the generation process of I∗, requiring no training or fine-tuning (Figure 2). Our approach is applicable for both text-generated and real-world guidance images, for which we apply DDIM inversion  to get the initial xGT.
+
+Spatial features.
+
+In text-to-image generation, one can use descriptive text prompts to specify various scene and object proprieties, including those related to their shape, pose and scene layout, for example, “a photo of a horse galloping in the forest”. However, the exact scene layout, the shape of the object and its fine-grained pose often significantly vary across generated images from the same prompt under different initial noise xT. This suggests that the diffusion process itself and the resulting spatial features have a role in forming such fine-grained spatial information. This hypothesis is strengthened by , which demonstrated that semantic part segments can be estimated from spatial features in an unconditional diffusion model.
+
+We opt to gain a better understanding of how such semantic spatial information is internally encoded in ϵtheta. To this end, we perform a simple PCA analysis which allows us to reason about the visual properties dominating the high-dimensional features in ϵtheta. Specifically, we generated a diverse set of images containing various humanoids in different styles, including both real and text-generated images; sample images are shown in Figure 3. For each image, we extract features flt from each layer of the decoder at each time step t, as illustrated in Figure 2(b). We then apply PCA on flt across all images.
+
+Figure 3 shows the first three principal components for a representative subset of the images across different layers and a single time step. As seen, the coarsest and shallowest layer is mostly dominated by foreground-background separation, depicting only a crude blob in the location of the foreground object. Interestingly, we can observe that the intermediate features (layer 4) encode localized semantic information shared across objects from different domains and under significant appearance variations – similar object parts (for example, legs, torso, head) are depicted in similar colors across all images (layer=4 row in Figure 3). These properties are consistent across the generation process as shown in Figure 4. As we go deeper into the network, the features gradually capture more high-frequency low-level information which eventually forms the output noise predicted by the network. Extended feature visualizations can be found in the Supplementary Materials (SM) on our website.
+
+Feature injection.
+
+Based on these observations, we now turn to the translation task. Let xGT be the initial noise, obtained by inverting IG using DDIM .
+
+Given the target prompt P, the generation of the translated image I∗ is carried with the same initial noise, that is, x∗T=xGT; we refer the reader to Appendix B for an analysis and justification of this design choice.
+
+At each step t of the backward process, we extract the guidance features {flt} from the denoising step: zGt−1=ϵtheta (xGt,∅,t). ([1] In the case of a generated guidance image, zGt−1=ϵtheta (xGt,PG,t), where PG is the text used to generate IG. ) These features are then injected into the generation of I∗, that is, in the denoising step of x∗t, we override the resulting features {f∗lt} with {flt}. This operation is expressed by:
+
+where we use ^ϵtheta (⋅;{flt}) to denote the modified denoising step with the injected features {flt}. In case of no injection, ^ϵtheta (xt,P,t;∅)=ϵtheta (xt,P,t).
+
+Figure 5(a) shows the effect of injecting spatial features flt at increasing layers l. As seen, injecting features only at layer l=4 is insufficient for preserving the structure of the guidance image. As we inject features in deeper layers, the structure is better preserved, yet appearance information is leaked into the generated image (for example, shades of the red t-shirt and blue jeans are apparent in Layer 4-11). To achieve a better balance between preserving the structure of IG and deviating from its appearance, we do not modify spatial features at deep layers, but rather leverage the self-attention layers as discussed below.
+
+Self-attention.
+
+Self-attention modules compute the affinities Alt between the spatial features after linearly projecting them into queries and keys. These affinities have a tight connection to the established concept of self-similarly, which has been used to design structure descriptors by both classical and modern works. This motivates us to consider the attention matrices Alt to achieve fine-grained control over the generated content.
+
+Figure 6, shows the leading principal components of a matrix Alt for a given image. As seen, in early layers, the attention is aligned with the semantic layout of the image, grouping regions according to semantic parts. Gradually, higher-frequency information is captured.
+
+Practically, injecting the self-attention matrix is done by replacing the matrix Alt in Equation 2. Intuitively, this operation pulls features close together, according to the affinities encoded in Alt. We denote this additional operation by modifying Equation 3 as follows:
+
+Figure 5(b) shows the effect of Equation 4 for increasing injection layers; the maximal injection layer of Alt controls the level of fidelity to the original structure, while mitigating the issue of appearance leakage. Figure 5(c) demonstrates the pivotal role of the features f4t. As seen, with only self-attention, that is, z∗t−1=^ϵtheta (xt,P,t;{Alt}), there is no semantic association between the original content and the translated one, resulting in large deviations in structure.
+
+Our plug-and-play diffusion features framework is summarized in Alg. 1, and is controlled by two parameters: (i)tau f defines the sampling step t until which f4t are injected. (ii)tau A is the sampling step until which Alt are injected. In all our results, we use a default setting where self-attention is injected into all the decoder layers. The exact settings of the parameters are discussed in Section 5. Inputs:
+
+IG▹ real guidance image.
+
+P▹ target text prompt.
+
+tau f, tau A▹ injection thresholds.
+
+xGT← DDIM-inv(IG)
+
+x∗T←xGT ▹ Starting from same seed.
+
+fort←T…1do.
+
+zGt−1,f4t,{Alt}←ϵtheta (xGt,∅,t)
+
+xGt−1←DDIM-samp(xGt,zGt−1)
+
+ift&gt;tau fthenf∗4t←f4telsef∗4t←∅
+
+ift&gt;tau AthenA∗lt←AltelseA∗lt←∅
+
+z∗t−1←^ϵtheta (x∗t,P,t;f∗4t,{A∗lt})
+
+x∗t−1←DDIM-samp(x∗t,z∗t−1)
+
+endfor.
+
+Output: I∗←x∗0.
+
+Algorithm 1 Plug-and-Play Diffusion Features.
+
+Negative-prompting.
+
+In classifier-free guidance , the predicted noise ϵ at each sampling step is given by:
+
+where w&gt;1 is the guidance strength. That is, ϵ is being extrapolated towards the conditional prediction ϵtheta (xt,P,t) and pushed away from the unconditional one ϵtheta (xt,∅,t). This increases the fidelity of the denoised image to the prompt P, while allowing to deviate from ϵtheta (xt,∅,t). Similarly, by replacing the empty prompt in Equation 5 with a “negative” prompt Pn, we can push away ϵ from ϵtheta (xt,Pn,t). For example, using Pn that describes the guidance image, we can steer the denoised image away from the original content.
+
+We use a parameter alpha in [0,1] to balance between neutral and negative prompting:
+
+We plug ~ϵ instead of ϵtheta (xt,∅,t) in Equation 5. That is,
+ϵ=wϵtheta (xt,P,t)+(1−w)~ϵ.
+
+In practice, we find negative-prompting to be beneficial for handling textureless “primitives” guidance images (for example, silhouette images). For natural-looking guidance images, it plays a minor role. See Section A.1 for more details.
+
+5. Results.
+
+We thoroughly evaluate our method both quantitatively and qualitatively on diverse guidance image domains, both real and generated ones, as discussed below. Please see Appendix C for full implementation details of our method.
+
+Datasets.
+
+Our method supports versatile text-guided image-to-image translation tasks and can be applied to arbitrary image domains. Since there is no existing benchmark for such diverse settings, we created two new datasets: (i) Wild-TI2I, comprises of 148 diverse text-image pairs, 53% of which consists of real guidance images that we gathered from the Web; (ii) ImageNet-R-TI2I, a benchmark we derived from the ImageNet-R dataset , which comprises of various renditions (for example, paintings, embroidery, and so on) of ImageNet object classes. To adopt this dataset for our purpose, we manually selected 3 high-quality images from 10 different classes. To generate our image-text examples, we created a list of text templates by defining for each source class target categories and styles, and automatically sampled their combinations. This results in total of 150 image-text pairs. See Appendix D for full details.
+
+Figs. 7 and 1 show a sample of our results on both real and generated guidance images. Our results show both adherence to the guidance shape and compliance with different target prompts. Our method successfully handles both naturally looking as well as artistic and textureless guidance images.
+
+5.1 Comparison to Prior/Concurrent Work.
+
+We focus our comparisons on state-of-the-art baselines that can be applied to diverse text-guided I2I tasks, including: (i) SDEdit  under three different noising levels, (ii) P2P , (iii) DiffuseIT , and (iv) VQGAN-CLIP . We further provide qualitative comparisons to Text2LIVE , FlexIT and DiffusionCLIP .
+
+We note that P2P requires a source prompt that is word-aligned to the target prompt. Thus, we include a qualitative and quantitative comparison to P2P on our ImageNet-R-TI2I benchmark, for which we automatically created aligned source-target prompts using the labels provided for the renditions and object categories. We further include qualitative comparison to a subset of Wild-TI2I for which the source and target prompts are aligned. For evaluating P2P on real guidance images, we applied DDIM inversion with the source text as in.
+
+Figure 8 shows sample results of our method compared with the baselines. As seen, our method successfully translates diverse inputs, and works well for both real and generated guidance images. In all cases, our results exhibit both high preservation to the guidance layout and high fidelity to the target prompt. This is in contrast to SDEdit that suffers from an inherent tradeoff between the two – with low noise level, the guidance structure is well preserved but in the expanse of hardly changing the appearance; larger deviation in appearances can be achieved with higher noise level, yet the structure is damaged. VQGAN+CLIP exhibits the same behavior, with overall lower image quality. Similarly, DiffuseIT shows high fidelity to the guiding shape, with little changes to the appearance.
+
+In comparison to P2P, it can be seen that their results on generated guidance images (first 3 rows) depict high fidelity to the target prompt, yet only rough preservation of layout, for example, results in different number ducks (first row), or deviation from the mouse shape (second row). Furthermore, their method struggles to deviate from the guidance appearance and satisfy the target edit when it is applied to real images (4-8 rows). We speculate that the reason is that DDIM inversion in their case is applied with a source text, requiring using low guidance scale at sampling. In contrast, our method performs DDIM inversion with an empty prompt, allowing us to use arbitrary guidance scale or prompts at generation.
+
+We numerically evaluate these results using two complementary metrics: text-image CLIP cosine similarity to quantify how well the generated images comply with the text prompt (higher is better), and distance between DINO-ViT self-similarity , to quantify the extent of structure preservation (lower is better).
+
+As seen in Figure 9, our method outperforms the baselines by achieving both high preservation of structure (in par with SDEdit w/ very low noising level), and high fidelity to the target text (in par with SDEdit w/ very high noising level). We note that VQGAN-CLIP and DiffuseIT directly use the evaluation metrics as their objective (CLIP loss in  and DINO self-similarity in ), which explains their respective scores in these metrics.
+
+Extended comparison to P2P.
+
+To factor out the effect of DDIM inversion, we expand our comparison to P2P on generated guidance images. Specifically, we created a generated-ImageNet-R-TI2I benchmark by using text prompts expressing the same object classes and renditions described in Section D.1. As seen in Figure 10, both our method and P2P comply with the target text. However, P2P often results in large deviations from the guidance structure, especially in cases where multiple prompts edits are applied (last two rows in Figure 10). Our method demonstrates fine-grained structure preservation across all these examples, while successfully translating multiple traits (for example, both category and style). These properties are strongly evident by Figure 9, where our method results in a significantly lower self-similarity distance, even compared to P2P with injecting cross-attention at all timesteps (t=1000).
+
+Additional baselines.
+
+Figure 11 shows qualitative comparisons with: (i) Text2LIVE , (ii) DiffusionCLIP , and (iii) FlexIT. These methods either fail to deviate from the guidance image or result in noticeable visual artifacts. Since Text2LIVE is designed for layered textural editing, thus it can only “paint” over the guidance image and cannot apply any structural changes necessary to convey the target edit (for example dog to venom, church to Asian tower). Moreover, Text2LIVE does not leverage a strong generative prior, hence often results in low visual quality. FlexIT often fails to deviate from the guidance content, which may be caused to their regularization that encourages the guidance and output images to match in LPIPS sense. We also note that DiffusionCLIP requires fine-tuning an unconditional diffusion model for each target edit on a set of 30+ images from a single domain (for example dog faces, churches).
+
+5.2 Ablation.
+
+We ablate our key design choices by evaluating our performance for the following cases: (i) w/o spatial features injection (w/o features), (ii) w/o self-attention injection. The metrics are reported in Figure 9(a) and a representative example is shown in Figure 5. The results demonstrate that both features and self-attention are critical for structure preservation – the features provide a semantic association between the original and translated content, while self-attention is essential for maintaining this association and capturing finer structural information. Further ablations can be found in Appendix A and Table 1. 6. Discussion and Conclusion.
+
+We presented a new framework for diverse text-guided image-to-image translation, founded on new insights about the internal representation of a pre-trained text-to-image diffusion model. Our method, based on simple manipulation of features, outperforms existing baselines, achieving a significantly better balance between preserving the guidance layout and deviating from its appearance. As for limitations, our method relies on the semantic association between the original and translated content in the diffusion feature space. Thus, it does not work well on detailed label segmentation masks where regions are colored arbitrarily (Figure 12). In addition, we are relying on DDIM inversion, which we found to work well in most of our examples. Nevertheless, we observed that for textureless “minimal” images, DDIM may occasionally result in a latent that encodes dominant low-frequency appearance information, in which case some appearance information would leak into our results. We believe that our work demonstrates the yet unrealized potential of the rich and powerful feature space spanned by pre-trained text-to-image diffusion models. We hope it will motivate future research in this direction.
+
+Acknowledgments:
+
+We thank Omer Bar-Tal for his insightful comments and discussion. This project received funding from the Israeli Science Foundation (grant 2303/20), the Carolito Stiftung, and the NVIDIA Applied Research Accelerator Program. Dr. Bagon is a Robin Chemers Neustein AI Fellow.
