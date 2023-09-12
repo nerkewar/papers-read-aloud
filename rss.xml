@@ -35,6 +35,23 @@
     <podcast:locked owner="sables-probe-0i@icloud.com">no</podcast:locked>
     <podcast:medium>podcast</podcast:medium>
     <item>
+        <title>Data Redaction from Conditional Generative Models</title>
+        <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2305.11351</guid>
+        <description>
+        <![CDATA[<p>Deep generative models are known to produce undesirable samples such as harmful content. Traditional mitigation methods include re-training from scratch, filtering, or editing; however, these are either computationally expensive or can be circumvented by third parties. In this paper, we take a different approach and study how to post-edit an already-trained conditional generative model so that it redacts certain conditionals that will, with high probability, lead to undesirable content. This is done by distilling the conditioning network in the models, giving a solution that is effective, efficient, controllable, and universal for a class of deep generative models. We conduct experiments on redacting prompts in text-to-image models and redacting voices in text-to-speech models. Our method is computationally light, leads to better redaction quality and robustness than baseline methods while still retaining high generation quality.</p>]]>
+        </description>
+        <pubDate>Mon, 11 Sep 2023 21:44:53 +0000</pubDate>
+        <enclosure
+        url="https://nerkewar.github.io/papers-read-aloud/episodes/2305.11351/audio.mp3" type="audio/mpeg" />
+        <itunes:author>nerkewar</itunes:author>
+        <itunes:explicit>No</itunes:explicit>
+        <itunes:episodeType>Full</itunes:episodeType>
+        <itunes:episode>18</itunes:episode>
+        <itunes:keywords></itunes:keywords>
+        <itunes:season>1</itunes:season>
+        <podcast:episode>18</podcast:episode>
+    </item>
+    <item>
         <title>Understanding and Mitigating Copying</title>
         <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2305.20086</guid>
         <description>
