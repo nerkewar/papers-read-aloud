@@ -1,0 +1,151 @@
+ReVersion: Diffusion-Based Relation Inversion from Images.
+
+Abstract.
+
+Diffusion models gain increasing popularity for their generative capabilities. Recently, there have been surging needs to generate customized images by inverting diffusion models from exemplar images. However, existing inversion methods mainly focus on capturing object appearances. How to invert object relations, another important pillar in the visual world, remains unexplored. In this work, we propose ReVersion for the Relation Inversion task, which aims to learn a specific relation (represented as “relation prompt”) from exemplar images. Specifically, we learn a relation prompt from a frozen pre-trained text-to-image diffusion model. The learned relation prompt can then be applied to generate relation-specific images with new objects, backgrounds, and styles.
+
+00footnotetext: ∗ indicates equal contribution. Project page and code are available.
+
+Our key insight is the “preposition prior” - real-world relation prompts can be sparsely activated upon a set of basis prepositional words. Specifically, we propose a novel relation-steering contrastive learning scheme to impose two critical properties of the relation prompt: 1) The relation prompt should capture the interaction between objects, enforced by the preposition prior. 2) The relation prompt should be disentangled away from object appearances. We further devise relation-focal importance sampling to emphasize high-level interactions over low-level appearances (, texture, color). To comprehensively evaluate this new task, we contribute ReVersion Benchmark, which provides various exemplar images with diverse relations. Extensive experiments validate the superiority of our approach over existing methods across a wide range of visual relations.
+
+![Image](https://media.arxiv-vanity.com/render-output/7501586/x1.png)
+
+1. Introduction.
+
+Recently, Text-to-image (T2I) diffusion models  have shown promising results and enabled subsequent explorations of various generative tasks. There have been several attempts  to invert a pre-trained text-to-image model, obtaining a text embedding representation to capture the object in the reference images. While existing methods have made substantial progress in capturing object appearances, such exploration for relations is rare. Capturing object relation is intrinsically a harder task as it requires the understanding of interactions between objects as well as the composition of an image, and existing inversion methods are unable to handle the task due to entity leakage from the reference images. Yet, this is an important direction that worths our attention.
+
+In this paper, we study the Relation Inversion task, whose objective is to learn a relation that co-exists in the given exemplar images. Specifically, with objects in each exemplar image following a specific relation, we aim to obtain a relation prompt in the text embedding space of the pre-trained text-to-image diffusion model. By composing the relation prompt with user-devised text prompts, users are able to synthesize images using the corresponding relation, with customized objects, styles, backgounds,.
+
+To better represent high-level relation concepts with the learnable prompt, we introduce a simple yet effective preposition prior. The preposition prior is based on a premise and two observations in the text embedding space. Specifically, we find that 1) prepositions are highly related to relations, 2) prepositions and words of other Parts-of-Speech are individually clustered in the text embedding space, and 3) complex real-world relations can be expressed with a basic set of prepositions. Our experiments show that this language-based prior can be effectively used as a high-level guidance for the relation prompt optimization.
+
+Based on our preposition prior, we propose the ReVersion framework to tackle the Relation Inversion problem. Notably, we design a novel relation-steering contrastive learning scheme to steer the relation prompt towards a relation-dense region in the text embedding space. A set of basis prepositions are used as positive samples to pull the embedding into the sparsely activated region, while words of other Parts-of-Speech (, nouns, adjectives) in text descriptions are regarded as negatives so that the semantics related to object appearances are disentangled away. To encourage attention on object interactions, we devise a relation-focal importance sampling strategy. It constrains the optimization process so that high-level interactions rather than low-level details are emphasized, effectively leading to better relation inversion results.
+
+As the first attempt in this direction, we further contribute the ReVersion Benchmark, which provides various exemplar images with diverse relations. The benchmark serves as an evaluation tool for future research in the Relation Inversion task. Results on a variety of relations demonstrate the power of preposition prior and our ReVersion framework.
+
+Our contributions are summarized as follows:
+
+1. We study a new problem, Relation Inversion, which requires learning a relation prompt for a relation that co-exists in several exemplar images. While existing T2I inversion methods mainly focus on capturing appearances, we take the initiative to explore relation, an under-explored yet important pillar in the visual world.
+2. We propose the ReVersion framework, where the relation-steering contrastive learning scheme steers the relation prompt using our “preposition prior”, and effectively disentangles the learned relation away from object appearances. Relation-focal importance sampling further emphasizes high-level relations over low-level details.
+3. We contribute the ReVersion Benchmark, which serves as a diagnostic and benchmarking tool for the new task of Relation Inversion.
+
+2. Related Work.
+
+Diffusion Models.
+Diffusion models  have become a mainstream approach for image synthesis  apart from GANs , and have shown success in various domains such as video generation , image restoration , and many more . In the diffusion-based approach, models are trained using score-matching objectives  at various noise levels, and sampling is done via iterative denoising. Text-to-Image (T2I) diffusion models  demonstrated impressive results in converting a user-provided text description into images. Motivated by their success, we build our framework on a state-of-the-art T2I diffusion model, Stable Diffusion .
+
+Relation Modeling.
+Relation modeling has been explored in discriminative tasks such as scene graph generation  and visual relationship detection . These works aim to detect visual relations between objects in given images and classify them into a predefined, closed-set of relations. However, the finite relation category set intrinsically limits the diversity of captured relations. In contrast, Relation Inversion regards relation modeling as a generative task, aiming to capture arbitrary, open-world relations from exemplar images and apply the resulting relation for content creation.
+
+Diffusion-Based Inversion. Given a pre-trained T2I diffusion model, inversion  aims to find a text embedding vector to express the concepts in the given exemplar images. For example, given several images of a particular “cat statue”, Textual Inversion  learns a new word to describe the appearance of this item - finding a vector in LDM ’s text embedding space, so that the new word can be composed into new sentences to achieve personalized creation. Rather than inverting the appearance information (, color, texture), our proposed Relation Inversion task extracts high-level object relations from exemplar images, which is a harder problem as it requires comprehending image compositions and object relationships.
+
+3. The Relation Inversion Task.
+
+Relation Inversion aims to extract the common relation ⟨R⟩ from several exemplar images. Let I={I1,I2,...In} be a set of exemplar images, and Ei,A and Ei,B be two dominant entities in image Ii. In Relation Inversion, we assume that the entities in each exemplar image interacts with each other through a common relation R. A set of coarse descriptions C={c1,c2,...cn} is associated to the exemplar images, where “ci=Ei,A ⟨R⟩ Ei,B” denotes the caption corresponding to image Ii. Our objective is to optimize the relation prompt ⟨R⟩ such that the co-existing relation can be accurately represented by the optimized prompt.
+
+An immediate application of Relation Inversion is relation-specific text-to-image synthesis. Once the prompt is acquired, one can generate images with novel objects interacting with each other following the specified relation. More generally, this task reveals a new direction of inferring relations from a set of exemplar images. This could potentially inspire future research in representation learning, few-shot learning, visual relation detection, scene graph generation, and many more.
+
+4. The ReVersion Framework.
+
+4.1 Preliminaries.
+
+Stable Diffusion.
+Diffusion models are a class of generative models that gradually denoise the Gaussian prior xT to the data x0 (, a natural image). The commonly used training objective LDMis:
+
+where xt is an noisy image constructed by adding noise ϵ∼N(0,I) to the natural image x0, and the network ϵtheta (⋅) is trained to predict the added noise. To sample data x0 from a trained diffusion model ϵtheta (⋅), we iteratively denoise xt from t=T to t=0 using the predicted noise ϵtheta (xt,t) at each timestep t.
+
+Latent Diffusion Model (LDM) , the predecessor of Stable Diffusion, mainly introduced two changes to the vanilla diffusion model . First, instead of directly modeling the natural image distribution, LDM models images’ projections in autoencoder’s compressed latent space. Second, LDM enables text-to-image generation by feeding encoded text input to the UNet ϵtheta (⋅). The LDM loss is:
+
+where x is the autoencoder latents for images, and tau theta (⋅) is a BERT text encoder  that encodes the text descriptions c.
+
+Stable Diffusion extends LDM by training on the larger LAION dataset , and changing the trainable BERT text encoder to the pre-trained CLIP  text encoder.
+
+Inversion on Text-to-Image Diffusion Models.
+Existing inversion methods focus on appearance inversion. Given several images that all contain a specific entity, they  find a text embedding V* for the pre-trained T2I model. The obtained V* can then be used to generate this entity in different scenarios.
+
+In this work, we aim to capture object relations instead. Given several exemplar images which share a common relation R, we aim to find a relation prompt ⟨R⟩ to capture this relation, such that “EA ⟨R⟩ EB” can be used to generate an image where EA and EB interact via relation ⟨R⟩.
+
+4.2 Preposition Prior.
+
+Appearance inversion focuses on inverting low-level features of a specific entity, thus the commonly used pixel-level reconstruction loss is sufficient to learn a prompt that captures the shared information in exemplar images. In contrast, relation is a high-level visual concept. A pixel-wise loss alone cannot accurately extract the target relation. Some linguistic priors need to be introduced to represent relations.
+
+In this section, we present the “preposition prior”, a language-based prior that steers the relation prompt towards a relation-dense region in the text embedding space. This prior is motivated by a well-acknowledged premise and two interesting observations on natural language.
+
+Premise: Prepositions describe relations. In natural language, prepositions are words that express the relation between elements in a sentence . This language prior naturally leads us to use prepositional words to regularize our relation prompt.
+
+Observation I: POS clustering. As shown in Figure 3, in the text embedding space of language models, embeddings are generally clustered according to their Part-of-Speech (POS) labels. This observation together with the Premise inspire us to steer our relation prompt ⟨R⟩ towards the preposition subspace (, the red region in Figure 3).
+
+Observation II: Sparse activation. As shown in Figure 4, feature similarity between the a real-world relation and the prepositional words are sparsely distributed, and the activated prepositions are usually related to this relation’s semantic meaning. For example, for the relation “swinging”, the sparsely activated prepositions are “underneath”, “down”, “beneath”, “aboard’,., which together collaboratively describe the “swinging” interaction. This pattern suggests that only a subset of prepositions should be activated during optimization, leading to our noise-robust design in Section 4.3. Based on the aforementioned analysis, we hypothesize that a common visual relation can be generally expressed as a set of basis prepositions, with only a small subset of highly semantically-related prepositions activated. Motivated by this, we design a relation-steering contrastive learning scheme to steer the relation prompt ⟨R⟩ into a relation-dense region in the text embedding space.
+
+4.3 Relation-Steering Contrastive Learning.
+
+Recall that our goal is to acquire a relation prompt ⟨R⟩ that accurately captures the co-existing relation in the exemplar images. A basic objective is to reconstruct the exemplar images using ⟨R⟩ :
+
+where ϵ∼N(0,I), ⟨R⟩ is the optimized text embedding, and ϵtheta (⋅) is a pre-trained text-to-image diffusion model whose weights are frozen throughout optimization. ⟨r⟩ is the relation prompt being optimized, and is fed into the pre-trained T2I model as part of the text description c.
+
+However, as discussed in Section 4.2 , this pixel-level reconstruction loss mainly focus on low-level reconstruction rather than visual relations. Consequently, directly applying this loss could result in appearance leakage and hence unsatisfactory relation inversion.
+
+Motivated by our Premise and Observation I, we adopt the preposition prior as an important guidance to steer the relation prompt towards the relation-dense text embedding subspace. Specifically, we can use the prepositions as positive samples and other POS’ words (, nouns, adjectives) as negative samples to construct a contrastive loss. Following InfoNCE , this preliminary contrastive loss is derived as:
+
+where R is the relation embedding, and gamma is the temperature parameter. Pi (, positive sample) is a randomly sampled preposition embedding at the i-th optimization iteration, and Ni={N1i,...,NKi} (, negative samples) is a set of randomly sampled embeddings from other POS. All embeddings are normalized to unit length.
+
+Since the relation prompt should also be disentangled away from object appearance, we further propose to select the object descriptions of exemplar images as the improved negative set. In this way, our choice of negatives serves two purposes: 1) provides POS guidance away from non-prepositional clusters, and 2) prevents appearance leakage by including exemplar object descriptions in the negative set.
+
+In addition, Observation II (sparse activation) implies that only a small set of prepositions should be considered as true positives. Therefore, we need a contrastive loss that is tolerant about noises in the positive set (, not all prepositions should be activated). Inspired by , we revise Equation 4 to a noise-robust contrastive loss as our final Steering Loss:
+
+where Pi={P1i,...,PLi} refers to positive samples randomly drawn from a set of basis prepositions (more details provided in Supplementary File), and Ni={N1i,...,NMi} refers to the improved negative samples.
+
+4.4 Relation-Focal Importance Sampling.
+
+In the sampling process of diffusion models, high-level semantics usually appear first, and fine details emerge at later stages . As our objective is to capture the relation (a high-level concept) in exemplar images, it is undesirable to emphasize on low-level details during optimization. Therefore, we conduct an importance sampling strategy to encourage the learning of high-level relations. Specifically, unlike previous reconstruction objectives, which samples the timestep t from a uniform distribution, we skew the sampling distribution so that a higher probability is assigned to a larger t. The Denoising Loss for relation-focal importance sampling becomes:
+
+where f(t) is the importance sampling function, which characterizes the probability density function to sample t from. The skewness of f(t) increases with alpha in (0,1]. We set alpha =0.5 throughout our experiments. The overall optimization objective of the ReVersion framework is written as:
+
+where lambda steer and lambda denoise are the weighting factors.
+
+5. The ReVersion Benchmark.
+
+To facilitate fair comparison for Relation Inversion, we present the ReVersion Benchmark. It consists of diverse relations and entities, along with a set of well-defined text descriptions. This benchmark can be used for conducting qualitative and quantitative evaluations.
+
+Relations and Entities. We define ten representative object relations with different abstraction levels, ranging from basic spatial relations (,“on top of”), entity interactions (, “shakes hands with”), to abstract concepts (,“is carved by”). A wide range of entities, such as animals, human, household items, are involved to further increase the diversity of the benchmark.
+
+Exemplar Images and Text Descriptions. For each relation, we collect four to ten exemplar images containing different entities. We further annotate several text templates for each exemplar image to describe them with different levels of details ([1] For example, a photo of a cat sitting on a box could be annotated as 1) “cat ⟨R⟩ box”, 2) “an orange cat ⟨R⟩ a black box” and 3) “an orange cat ⟨R⟩ a black box, with trees in the background”.). These training templates can be used for the optimization of the relation prompt.
+
+Benchmark Scenarios. To validate the robustness of the relation inversion methods, we design 100 inference templates composing of different object entities for each of the ten relations. This provides a total of 1,000 inference templates for performance evaluation.
+
+6. Experiments.
+
+We present qualitative and quantitative results in this section, and more experiments and analysis are in the Supplementary File. We adopt Stable Diffusion  for all experiments since it achieves a good balance between quality and speed. We generate images at 512×512 resolution.
+
+6.1 Comparison Methods.
+
+Text-to-Image Generation using Stable Diffusion. We use the original Stable Diffusion 1.5 as the text-to-image generation baseline. Since there is no ground-truth textual description for the relation in each set of exemplar images, we use natural language that can best describe the relation to replace the ⟨R⟩ token. For example, in Figure 6 (a), the co-existing relation in the reference images can be roughly described as “is painted on”. Thus we use it to replace the ⟨R⟩ token in the inference template “Spiderman ⟨R⟩ building”, resulting in a sentence “Spiderman is painted on building”, which is then used as the text prompt for generation.
+
+Textual Inversion. For fair comparison with our method developed on Stable Diffusion 1.5, we use the diffuserimplementation of Textual Inversion  on Stable Diffusion 1.5. Based on the default hyper-parameter settings, we tuned the learning rate and batch size for its optimal performance on our Relation Inversion task. We use Textual Inversion’s LDM objective to optimize ⟨R⟩ for 3000 iterations, and generate images using the obtained ⟨R⟩.
+
+6.2 Qualitative Comparisons.
+
+In Figure 5, we provide the generation results using ⟨R⟩ inverted by ReVersion. We observe that our framework is capable of 1) synthesizing the entities in the inference template and 2) ensuring that entities follow the relation co-existing in the exemplar images. We then compare our method with 1) text-to-image generation via Stable Diffusion  and 2) Textual Inversion  in Figure 6. For example, in the first row, although the text-to-image baseline successfully generates both entities (Spiderman and building), it fails to paint Spiderman on the building as the exemplar images do. Text-to-image generation severely relies on the bias between two entities: Spiderman usually climbs/jumps on the buildings, instead of being painted onto the buildings. Using exemplar images and our ReVersion framework alleviates this problem. In Textual Inversion, entities in the exemplar images like canvas are leaked to ⟨R⟩ , such that the generated image shows a Spiderman on the canvas even when the word “canvas” is not in the inference prompt.
+
+6.3 Quantitative Comparisons.
+
+We conduct a user study with 37 human evaluators to assess the performance of our ReVersion framework on the Relation Inversion task. We sampled 20 groups of images. Each group has three images generated by different methods. For each group, apart from generated images, the following information is presented: 1) exemplar images of a particular relation 2) text description of the exemplar images. We then ask the evaluators to vote for the best generated image respect to the following metrics.
+
+Entity Accuracy. Given an inference template in the form of “Entity A ⟨R⟩ Entity B”, we ask evaluators to determine whether Entity A and Entity B are both authentically generated in each image.
+
+Relation Accuracy. Human evaluators are asked to evaluate whether the relations of the two entities in the generated image are consistent with the relation co-existing in the exemplar images. As shown in Table 1, our method clearly obtains better results under the two quality metrics.
+
+6.4 Ablation Study.
+
+From Table A4, we observe that removing steering or importance sampling results in deterioration in both relation accuracy and entity accuracy. This corroborates our observations that 1) relation-steering effectively guides ⟨R⟩ towards the relation-dense “preposition prior” and disentangles ⟨R⟩ away from exemplar entities, and 2) importance sampling emphasizes high-level relations over low-level details, aiding ⟨R⟩ to be relation-focal. We further show qualitatively the necessity of both modules in Figure 7. Effectiveness of Relation-Steering.
+In “w/o Steering”, we remove the Steering Loss Lsteer in the optimization process. As shown in Figure 7 (a), the appearance of the white puppy in the lower-left exemplar image is leaked into ⟨R⟩ , resulting in similar puppies in the generated images. In Figure 7 (b), many appearance elements are leaked into ⟨R⟩ , such as the gray background, the black cube, and the husky dog. The dog and the plate also do not follow the relation of “being on top of” as shown in exemplar images. Consequently, the images generated via ⟨R⟩ do not present the correct relation and introduced unwanted leaked imageries.
+
+Effectiveness of Importance Sampling.
+We replace our relation-focal importance sampling with uniform sampling, and observe that ⟨R⟩ pays too much attention to low-level details rather than high-level relations. For instance, in Figure 7 (a) “w/o Importance Sampling”, the basket rattan wraps around the puppy’s head in the same way as the exemplar image, instead of containing the puppy inside.
+
+7. Conclusion.
+
+In this work, we take the first step forward and propose the Relation Inversion task, which aims to learn a relation prompt to capture the relation that co-exists in multiple exemplar images. Motivated by the preposition prior, our relation-steering contrastive learning scheme effectively guides the relation prompt towards relation-dense regions in the text embedding space. We also contribute the ReVersion Benchmark for performance evaluation. Our proposed Relation Inversion task would be a good inspiration for future works in various domains such as generative model inversion, representation learning, few-shot learning, visual relation detection, and scene graph generation.
+
+Limitations. Our performance is dependent on the generative capabilities of Stable Diffusion. It might produce sub-optimal synthesis results for entities that Stable Diffusion struggles at, such as human body and human face.
+
+Potential Negative Societal Impacts. The entity relational composition capabilities of ReVersion could be applied maliciously on real human figures.
