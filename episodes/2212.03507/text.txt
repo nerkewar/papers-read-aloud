@@ -1,0 +1,72 @@
+Ensuring Visual Commonsense Morality for Text-to-Image Generation.
+
+Abstract.
+
+Text-to-image generation methods produce high-resolution and high-quality images, but these methods should not produce immoral images that may contain inappropriate content from the perspective of commonsense morality. In this paper, we aim to automatically judge the immorality of synthesized images and manipulate these images into morally acceptable alternatives. To this end, we build a model that has three main primitives: (1) recognition of the visual commonsense immorality in a given image, (2) localization or highlighting of immoral visual (and textual) attributes that contribute to the immorality of the image, and (3) manipulation of an immoral image to create a morally-qualifying alternative. We conduct experiments and human studies using the state-of-the-art Stable Diffusion text-to-image generation model, demonstrating the effectiveness of our ethical image manipulation approach.
+
+Machine Learning, ICML.
+
+1. Introduction.
+
+Notable progress has been made in text-to-image synthesis lately with the arising of various new machine learning methods, such as large-scale generative models trained with sufficient data and scale . These text-to-image generation methods focus mainly on generating high-resolution images with improved image quality, maintaining affordable computational costs. However, we observe in our experiment that these models often synthesize images that clearly should not have been generated as their content deviates from commonsense morality (see supplemental Figure 5).
+
+Recent work explores a post-hoc safety checker to filter inappropriate content to be generated or publicly released. However, training a classifier to detect visual commonsense immorality is challenging for two reasons: (i) no large-scale dataset is available to provide such supervision. (ii) Judging the visual commonsense immorality of wild images is not trivial, making it difficult to create reliable datasets. To address these concerns, recent work  leverages a text-image joint embedding space where language supervision allows zero-shot transfer for vision-based tasks. They train an immorality classifier with a large-scale textual commonsense immorality dataset, that is, the ETHICS dataset, which provides diverse scenarios of commonsense moral intuitions described by natural language.
+
+Our work starts with building a visual commonsense immorality recognizer, and we aim to manipulate immorally generated images into visually moral alternatives (see Figure 1). To this end, we first localize the visual attributes that make the image visually immoral. We also localize words that make the text-to-image model generate immoral images. Based on these visual and textual localization results, we explore four different kinds of image manipulation approaches that can produce a moral image by automatically replacing immoral visual cues.
+
+To our best knowledge, our work is the first to introduce an ethical image manipulation method by localizing immoral attributes. We empirically demonstrate the effectiveness of our proposed method with the state-of-the-art text-to-image generation model called Stable Diffusion . Also, our human study confirms that our method successfully manipulates immoral images into a moral alternative. We summarize our contributions as follows:
+
+1. Based on a visual commonsense immorality recognition, we introduce a textual and visual immoral attribute localizer, which highlights immoral attributes that make the input image visually immoral.
+2. Given immoral visual and texture attributes, we introduce four different ethical image manipulation approaches that can produce a moral image as output by automatically replacing immoral visual cues.
+3. We empirically analyze the effectiveness of our proposed approach with the state-of-the-art model, Stable Diffusion, which is also supported by our human study.
+
+2. Method.
+
+2.1 Visual Commonsense Immorality Recognition.
+
+The Visual Commonsense Immorality Recognizer acts like a judge, determining the immorality of a given input image. Training such a judge, however, is challenging due to the lack of a large-scale, high-quality dataset for the visual commonsense immorality recognition task. Instead, following the recent work , we utilize a pre-trained (frozen) image-text joint embedding space, for example, CLIP . Given this, we first train an auxiliary text-based immorality classifier with the large-scale ETHICS dataset, which provides over 13,000 textual examples and corresponding binary labels. The immorality of an unseen image is then recognized through the joint embedder and the trained immorality classifier in a zero-shot manner. We explain more details about visual commonsense immorality recognition in Appendix B.1. 2.2 Immoral Semantic Attribute Identification.
+
+Textual Immoral Attribute Identification by Masking.
+As shown in Figure 3, our model localizes semantic immoral (visual or textual) attributes that make image I visually immoral. To localize such words, we employ an input sampling approach, which measures the importance of a word by setting it masked and observing its effect on the model’s decision. Formally, given a text-to-image model fg:T -> I and a visual commonsense immorality classifier fc:I -> R, our model generates an image I′ from the given input sentence T in {w1,w2,…} as well as its visual immorality score s in [0,1]. We use a per-word binary mask MT:|T| -> {0,1} to have masked input sentence T′=T⊙MT where ⊙ denotes element-wise multiplication. The importance score for each word wi for i in {1,…,|T|} is then computed as follows by taking an expectation over all possible masks MT conditioned on the event that word wi is observed.
+
+where an importance map is obtained by summing over a set of masks {MT1,…,MTK} with weights fc(fg(T⊙MTk)).
+
+Visual Immoral Attribute Identification by Randomized Masking.
+We extend textual attribute identification to visual identification to localize which visual attributes contribute to making the image I visually immoral. As shown in Figure 3 (b), we employ a randomized input sampling approach  that can measure the importance of an image region by setting it masked and observing its effect on the model’s decision. Formally, given a visual commonsense immorality classifier fc:I -> R, we use a randomized binary mask MIi to have masked input image I′=I⊙MI where ⊙ denotes element-wise multiplication. The importance score for each image region xi for i in {1,…,W×H} is then computed as follows by taking summation over masks MI using Monte Carlo sampling:
+
+where we similarly can obtain an importance map by summing over a set of masks {MI1,…,MIK} with weights fc(fg(I⊙MIk)).
+
+2.3 Ethical Image Manipulation.
+
+Lastly, we introduce various image manipulation approaches to produce a moral image by automatically replacing immoral visual cues. Here, we explore four kinds of image manipulation approaches. (i) Blurring Immoral Visual Semantic Cues. Given an immoral score map from the earlier step, we apply a blur kernel in the spatial domain to degrade the visual quality of inappropriate content (for example, blurring a gun). (ii) Immoral Object Replacement by Moral Image Inpainting. Instead of making blurry images, we apply an image inpainting technique to replace immoral objects with moral alternatives. (iii) Text-driven Image Manipulation with Moral Words. Our model searches for word candidates (for example, “water”) that is conditioned to manipulate an input image (for example, “people shooting a gun at each other”) into moral scenes (for example, “people shooting a water gun at each other”). (iv) Text-driven Image Manipulation with Moral Image Captions. We utilize pre-trained image captioning models that are trained with moral datasets; thus, they learn to generate moral image captions even for immoral images. For example, they create the caption “a man wearing a helmet and holding a camera” for an image of people shooting a gun at each other. Text-driven image manipulator produces moral images accordingly. We explain more details of each manipulation method in Appendix B.2, and an overview of manipulation approach is described in supplemental Figure 7. 3. Experiments.
+
+Our model utilizes the CLIP-based textual and image encoders , which use contrastive learning to learn a visual-textual joint representation. In this paper, we train our model with ETHICS Commonsense Morality  dataset, transferring knowledge from texts to visual data by utilizing a joint embedding space. We provide other implementation details in the Appendix C.
+
+3.1 Qualitative Analysis.
+
+Analysis of Immoral Attribute Identification.
+Recall from Section 2.2, our key component towards ethical image manipulation is the immoral attribute identification module, which localizes important visual (or textual) attributes that make the image immorally classified. We first observe that our baseline, Stable Diffusion, produces immorally generated images as shown in supplemental Figure 8 (see top row). Note that this model enables a so-called Safety Checker to filter out images with ethical and moral concerns. Given these immoral images as input, we apply our module and visualize the image-based immorality score map as shown in supplemental Figure 8 (see bottom row). Our module reasonably highlights immoral objects, such as localizing cigarettes, blood, and a gun. Further, our model can highlight a set of words that drive the text-driven image generator to produce immoral scenes.
+
+Analysis of Blurring Immoral Visual Attributes.
+Recall from Section 2.3, we explore four different ways of ethical image manipulation approaches. As shown in Figure 4, for (i) Blurring and (ii) Moral Image Inpainting, we first compute the spatial immorality score (see 2nd column) map from an immoral image (see 1st column) generated by the Stable Diffusion model. We also provide the manipulation outputs (3rd column) by blurring immoral contents. Our model successfully localizes immoral visual attributes (for example, bleeding blood on the face or holding cigarettes) followed by blurring such localized contents.
+
+Analysis of Immoral Object Replacement by Moral Image Inpainting.
+We further explore replacing immoral visual attributes with moral content using image inpainting models, that is, reconstructing immoral image regions in an image so that the filled-in image becomes morally classified. In Figure 4 (last column), we provide manipulated outputs from our moral image inpainting approach. The inpainting model successfully replaces immoral visual attributes with moral contents, such as bleeding blood on the face being replaced by a smiling face.
+
+Analysis of Text-driven Image Manipulation with Moral Image Captioning.
+In addition to leveraging the image inpainting model, another way would be utilizing an image captioning model trained with a highly-curated dataset where immoral images and texts are filtered out. This approach produces descriptive captions from a moral perspective, and examples are shown in supplemental Figure 10. For example, an image of “a bride is bleeding” is described as “a painting of a woman in a red dress”. Using these generated captions as a condition, we can successfully manipulate them into a moral scene (compare 1st vs. last two columns).
+
+Analysis of Replacing Immoral Words with Moral Alternatives.
+Lastly, supplemental Figure 9 shows examples of image manipulation by replacing immoral words with moral alternatives. For example, given a text input, “A baby holding a sword,” the image generator produces the corresponding image without ethical screening (see 1st row). Our immoral attribute identifier highlights the word “sword” contributes to the generated image being classified as immoral, and our module searches for an alternative word (for example, “fantasy”) that can be additionally conditioned to manipulate the given image with reduced immorality. The alternative word provided manipulates the generated immoral image into being more moral (see two right columns).
+
+3.2 Quantitative Analysis.
+
+We conduct a human study to demonstrate whether our generated images are indeed morally manipulated. As shown in supplemental Figure 12 (a), we recruited 178 human evaluators, and we asked them to judge the immorality of each generated image on a Likert scale from 1 (not immoral) to 5 (extremely immoral). We compare scores between originally generated images by Stable Diffusion (with Safety Checker enabled) and manipulated images from our four approaches (that is, blurring, inpainting, alternative word, and moral captions). Except for the blurring-based approach, all approaches significantly reduce perceived immorality. Especially an inpainting-based method shows the best performance in ethical image manipulation. This confirms that our morally manipulated images are more morally perceived than the original ones. As shown in supplemental Figure 12 (b), we also experiment with our visual commonsense immorality recognizer to compute immorality scores for each image. We observe trends similar to our human evaluation, and this further confirms that our visual commonsense immorality recognizer matches human perception.
+
+4. Conclusion.
+
+In this paper, we introduced a method to manipulate an immorally generated image into a moral one where immoral contents are localized and replaced by a moral alternative attribute. We presented three essential modules: judging visual commonsense immorality, localizing input-level immoral attributes, and producing morally-satisfying manipulation images. Our human study and detailed analysis demonstrate the effectiveness of our proposed ethical image manipulation model.
+
+5. Acknowledgments.
+
+This work was supported by the National Research Foundation of Korea grant (NRF-2021R1C1C1009608, 25%), Basic Science Research Program (NRF-2021R1A6A1A13044830, 25%) and by Institute of Information &amp; communications Technology Planning &amp; Evaluation (IITP) grant funded by the Korea government (MSIT) (2022-0-00043, 50%).

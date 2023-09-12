@@ -35,6 +35,40 @@
     <podcast:locked owner="sables-probe-0i@icloud.com">no</podcast:locked>
     <podcast:medium>podcast</podcast:medium>
     <item>
+        <title>What the DAAM: Interpreting Stable Diffusion Using Cross Attention</title>
+        <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2210.04885</guid>
+        <description>
+        <![CDATA[<p>Large-scale diffusion neural networks represent a substantial milestone in text-to-image generation, with some performing similar to real photographs in human evaluation. However, they remain poorly understood, lacking explainability and interpretability analyses, largely due to their proprietary, closed-source nature. In this paper, to shine some much-needed light on text-to-image diffusion models, we perform a text–image attribution analysis on Stable Diffusion, a recently open-sourced large diffusion model. To produce pixel-level attribution maps, we propose DAAM, a novel method based on upscaling and aggregating cross-attention activations in the latent denoising subnetwork. We support its correctness by evaluating its unsupervised semantic segmentation quality on its own generated imagery, compared to supervised segmentation models. We show that DAAM performs strongly on COCO caption-generated images, achieving an mIoU of 61.0, and it outperforms supervised models on open-vocabulary segmentation, for an mIoU of 51.5. We further find that certain parts of speech, like punctuation and conjunctions, influence the generated imagery most, which agrees with the prior literature, while determiners and numerals the least, suggesting poor numeracy. To our knowledge, we are the first to propose and study word–pixel attribution for large-scale text-to-image diffusion models. Our code and data are at https://github.com/castorini/daam.</p>]]>
+        </description>
+        <pubDate>Mon, 11 Sep 2023 21:39:49 +0000</pubDate>
+        <enclosure
+        url="https://nerkewar.github.io/papers-read-aloud/episodes/2210.04885/audio.mp3" type="audio/mpeg" />
+        <itunes:author>nerkewar</itunes:author>
+        <itunes:explicit>No</itunes:explicit>
+        <itunes:episodeType>Full</itunes:episodeType>
+        <itunes:episode>11</itunes:episode>
+        <itunes:keywords></itunes:keywords>
+        <itunes:season>1</itunes:season>
+        <podcast:episode>11</podcast:episode>
+    </item>
+    <item>
+        <title>Ensuring Visual Commonsense Morality for Text-to-Image Generation</title>
+        <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2212.03507</guid>
+        <description>
+        <![CDATA[<p>Text-to-image generation methods produce high-resolution and high-quality images, but these methods should not produce immoral images that may contain inappropriate content from the perspective of commonsense morality. In this paper, we aim to automatically judge the immorality of synthesized images and manipulate these images into morally acceptable alternatives. To this end, we build a model that has three main primitives: (1) recognition of the visual commonsense immorality in a given image, (2) localization or highlighting of immoral visual (and textual) attributes that contribute to the immorality of the image, and (3) manipulation of an immoral image to create a morally-qualifying alternative. We conduct experiments and human studies using the state-of-the-art Stable Diffusion text-to-image generation model, demonstrating the effectiveness of our ethical image manipulation approach.</p>]]>
+        </description>
+        <pubDate>Mon, 11 Sep 2023 21:38:58 +0000</pubDate>
+        <enclosure
+        url="https://nerkewar.github.io/papers-read-aloud/episodes/2212.03507/audio.mp3" type="audio/mpeg" />
+        <itunes:author>nerkewar</itunes:author>
+        <itunes:explicit>No</itunes:explicit>
+        <itunes:episodeType>Full</itunes:episodeType>
+        <itunes:episode>10</itunes:episode>
+        <itunes:keywords></itunes:keywords>
+        <itunes:season>1</itunes:season>
+        <podcast:episode>10</podcast:episode>
+    </item>
+    <item>
         <title>StyleDrop: Text-to-Image Generation in Any Style</title>
         <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2306.00983</guid>
         <description>
