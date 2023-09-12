@@ -1,0 +1,184 @@
+Text-to-Image Diffusion Models can be Easily Backdoored through Multimodal Data Poisoning.
+
+Abstract.
+
+With the help of conditioning mechanisms, the state-of-the-art diffusion models have achieved tremendous success in guided image generation, particularly in text-to-image synthesis. To gain a better understanding of the training process and potential risks of text-to-image synthesis, we perform a systematic investigation of backdoor attack on text-to-image diffusion models and propose BadT2I, a general multimodal backdoor attack framework that tampers with image synthesis in diverse semantic levels. Specifically, we perform backdoor attacks on three levels of the vision semantics: Pixel-Backdoor, Object-Backdoorand Style-Backdoor. By utilizing a regularization loss, our methods efficiently inject backdoors into a large-scale text-to-image diffusion model while preserving its utility with benign inputs. We conduct empirical experiments on Stable Diffusion, the widely-used text-to-image diffusion model, demonstrating that the large-scale diffusion model can be easily backdoored within a few fine-tuning steps. We conduct additional experiments to explore the impact of different types of textual triggers. Besides, we discuss the backdoor persistence during further training, the findings of which provide insights for the development of backdoor defense methods.
+
+Text-to-image synthesis, Backdoor attack, Conditional diffusion model.
+
+1. Introduction.
+
+Recently, diffusion models have emerged as an expressive family of generative models with unprecedented performance in generating diverse, high-quality samples in various data modalities. Diffusion models progressively destruct data by injecting noise, then learn to reverse this process of denoising for sample generation. With the conditioning mechanism integrated into the reverse process, researchers propose various kinds of conditional diffusion models for controllable generation, especially in the field of text-to-image synthesis, including Stable Diffusion , DALLE-2 , Imagen , DeepFloyd-IF , and so on, which achieve excellent results and attract tremendous attention. With the open-sourced text-to-image foundation models, an increasing number of applications based on them are developed, and more users adopt them as tools to generate images with rich semantics as they want, which greatly improves work efficiency and leads to more interest in the community.
+
+The training of text-to-image diffusion model requires large-scale datasets and immense computational overhead. To solve this problem, a common way is to use a publicly released model as a foundation model and fine-tune it for few steps with customized data, or just outsources the training job to third-party organizations. An important threat in this scenario is backdoor attack , that attackers secretly inject backdoors into the model during training stage and control the model’s outputs in inference stage utilizing inputs embedded with the backdoor trigger (for example, Figure 1). For text-to-image generation, a malicious attacker can inject a backdoor to evade the filter of pornographic contents (that is, a natural text with the trigger as input would lead to a pornographic image as output) and can also enable the model to output offensive, inflammatory content when fed with specific inputs. On the flip side, backdoor attacks can also be positively leveraged to watermark the model for copyright protection.
+
+Researchers have carried out works of backdoor attacks on diffusion models. Chou et al. and Chen et al. firstly inject backdoors into the diffusion models. These works investigate backdoor attacks on the reverse process of unconditional diffusion models , which are application-restricted and do not work for conditional generation such as text-to-image tasks. Struppek et al. inject backdoors into the text encoder of Stable Diffusion to attack text-to-image generation, which essentially has no impact on diffusion process and has limited ability to tamper with the generated images. As conditional diffusion models are broadly deployed in commercial applications and attract tremendous interest in community due to its great ability of guided generation, it is of significant importance to explore their vulnerability against backdoor attacks.
+
+Therefore, we focus on the multimodal backdoor attack against text-to-image diffusion models, one of the most representative conditional diffusion models. The goal of backdoor attacks is to force the model to generate manipulated images as the pre-set backdoor targets through textual triggers. This attack scenario is much more challenging. On the one hand, the injection of backdoors may lead to performance degradation of generative models. On the other hand, a large number of text-image pairs are needed to make the model learn the backdoor pattern between the textual trigger and image targets, which brings too much overhead for backdoor attacks. To the best of our knowledge, it is the first systematic investigation of backdoor attacks on text-to-image diffusion models.
+
+To address the aforementioned issues, we propose BadT2I, a multimodal backdoor attack framework against text-to-image diffusion models, which achieves utility-preserved and low training overhead. Specifically, BadT2Iconsists of three types of backdoor attacks with diverse backdoor targets according to three levels of vision semantics: namely Pixel-Backdoor(tampering with specified pixels of generated images), Object-Backdoor(tampering with specified semantic object of generated images) and Style-Backdoor(tampering with specified style attributes of generated images).
+BadT2Iachieves diverse backdoor targets by injecting backdoors into conditional diffusion process through multimodal data poisoning. Differing from the vanilla poisoning method, a regularization loss is introduced to ensure the utility of the backdoored model, and we use a teacher model in Object-Backdoorand Style-Backdoorto make model learn the semantic backdoor targets efficiently. Our approach does not require special poisoned samples of text-image pairs so that we can train models directly on general text-image datasets such as LAION. The only one with special data requirement is Object-Backdoor, which uses a small amount of data (≤ 500 samples) of two kinds of objects filtered from LAION, which is easy to implement. Our method is also lightweight by fine-tuning for a minimum of 2K training iterations (Section 5.1), which makes this attack widely exploited and more dangerous. Additionally, the triggers of BadT2Iare the same as those of textual backdoor attacks , so that various textual triggers (Section 5.6) can make the attack harder to detect.
+
+We conduct experiments utilizing various evaluation metrics with diverse backdoor targets, demonstrating our methods’ effectiveness with low impact on model utility. We also investigate the factors affecting the backdoor effect and the persistence of the backdoor during further fine-tuning. In summary, our major contributions are:
+
+1. We firstly perform a systematic investigation of backdoor attacks against text-to-image diffusion models. Utilizing a regularization loss and a teacher model, our methods are utility-preserved and with low training overhead.
+2. We demonstrate the vulnerability of text-to-image diffusion models under backdoor attacks. Experimental results show attackers can easily and effectively tamper with various levels of vision semantics in text-to-image tasks, by injecting backdoors into the conditional diffusion process.
+3. We investigate the effects of diverse triggers at the textual level, as well as the backdoor persistence during different fine-tuning strategies, which is inspiring for the following backdoor detection and defense works.
+
+2. Related Work.
+
+2.1. Diffusion Models.
+
+Diffusion models are initially used for unconditional image synthesis and show its ability in generating diverse, high-quality samples. In order to control the generation of diffusion models, Dhariwal et al. firstly propose a conditional image synthesis method utilizing classifier guidance. Subsequent works use CLIP, which contains multi-modal information of text and images, to achieve text-guided image synthesis. Ho and Salimans propose classifier-free guidance, which incorporates the conditional mechanism into the diffusion process to achieve conditional image synthesis without external classifiers. Nichol et al. firstly train a conditional diffusion model utilizing classifier-free guidance on large datasets of image-text pairs, achieving great success in text-to-image synthesis. Following that, some representative studies of text-to-image diffusion models have been proposed, based on the conditioning mechanism. Our experiments are based on Stable Diffusion , which we will introduce in detail later, because of its wide applications.
+
+2.2. Backdoor Attacks on Generative Models.
+
+Compared to the backdoor attacks on classification models , the backdoor attacks on generative models have not been fully investigated. Salem et al. firstly investigate backdoor attacks on generative models and propose BAAAN, a method of backdoor attack against autoencoders and GANs. Rawat et al. propose several methods to inject backdoor into GANs and provide defense strategies.
+
+Recently, due to the popularity of diffusion models , researchers have started to focus on the vulnerability of diffusion models against backdoor attacks. Chen et al. and Chou et al. study backdoor attacks against unconditional diffusion models, conducting empirical experiments on the DDPM and DDIM. Struppek et al. consider the text-to-image application of diffusion models, but their approach is to inject a backdoor into the text encoder of Stable Diffusion , rather than injecting the backdoor into the diffusion process.
+
+A similar parallel work is , which tries to inject a pair of watermark image and textual trigger into Stable Diffusion. This work differs from ours in that it mainly focuses on copyright protection and does not investigate the feasibility of injecting semantic-level backdoors.
+
+3. Preliminaries.
+
+3.1. Text-to-Image Diffusion Models.
+
+Diffusion models learn data distribution by reversing the forward process of adding noise. We choose DDPM as a representative to introduce the training and inference processes of diffusion models. Firstly, given a data distribution x0∼q(x), a forward Markov process can be defined as q(x1:T|x0):=Pi Tt=1q(xt|xt−1) with Gaussian transitions parameterized as:
+
+where beta t in (0,1) is the hyperparameter controlling the variance. With alpha t:=1−beta t, ¯alpha t:=∏ts=1alpha s, we can obtain the analytical form of q(xt|x0) for all t in {0,1,...,T}:
+
+Then, for generating new data samples, DDPM starts by generating a noise distribution by Equation (2) and running a learnable Markov chain in the reverse process:
+
+where theta denotes model parameters, and the mean mu theta (xt) and variance Sigma theta (xt,t) are parameterized by deep neural networks. In order to minimize the distance between Gaussian transitions ptheta (xt−1|xt) and the posterior q(xt−1|xt,x0), the simplified loss function is:
+
+where ϵ∼N(0,I), t∼Uniform(1,...,T), xt is computed from x0 and ϵ by Equation (2), and ϵtheta is a deep neural network that predicts the noise ϵ given xt and t.
+
+Unconditional diffusion models can only generate samples randomly, while conditional diffusion models have the capability to control the synthesis process through condition inputs such as text. Utilizing conditional diffusion process on the guidance of text semantics, recent text-to-image diffusion models raise the bar to a new level of text-to-image synthesis.
+
+In this paper, we use Stable Diffusion  , a representative conditional diffusion model, to perform our BadT2I. Note that our method is also applicable to other text-to-image diffusion models. Stable Diffusion mainly contains three modules: (1) Text encoder T: that takes a text y as input and outputs the corresponding text embedding c:=T(y); (2) Image encoder E and decoder D: that provide a low-dimensional representation space for images x, as x≈D(z)=D(E(x)), where z is the latent representation of the image; (3) Conditional denoising module ϵtheta : a U-Net model that takes a triplet (zt,t,c) as input, where zt denotes the noisy latent representation at the t-th time step, and predicts the noise in zt. As the text encoder and image autoencoder are pre-trained models, the training objective of ϵtheta can be simplified to:
+
+where z=E(x) and c=T(y) denote the embeddings of an image-text pair (x,y). zt is a noisy version of the z obtained by Equation (2).
+z is firstly destructed by injecting Gaussian noise ϵ to the diffusion process with time t, and then model learns to predict ϵ under the condition c. In training, c is set to null with a certain probability to endow the model with the ability of unconditional generation.
+
+In the inference stage, model performs text-to-image synthesis similar to Equation (3) utilizing the following linear combination of the conditional and unconditional score estimates:
+
+where s≥1 is the guidance scale and ∅ denotes null condition input.
+
+3.2. Threat Model.
+
+Attack scenarios.
+With increasing of data-scale and computational overhead for training, it is rare that users can afford to completely train a text-to-image diffusion model in local environment. So we consider two attack scenarios derived from the real-world in which BadT2Iis easy to perform: (1) Outsourced training scenario: victims train their models on untrustworthy cloud platforms or outsource their training job to third-party organizations. (2) Pre-training and fine-tuning scenario: victims use a pre-trained model released by third-party and fine-tune it for few steps with their customized data. In the “outsource training” scenario, we assume that the untrustworthy outsourcing organization is malicious and try to inject backdoors into the model during training. In the “pre-training and fine-tuning” scenario, we assume that the attacker trains a text-to-image diffusion model with a stealthy backdoor and release it as a clean model.
+
+Attacker’s capability.
+According to the scenarios mentioned above, we assume the attacker has control over the training process but remains unaware of the test data used by victims.
+
+Attacker’s goals. Unlike typical deep classification models that only output class labels, as generative models, text-to-image diffusion models generate outputs containing more semantic information. Consequently, a malicious adversary aims to inject various backdoors into the model to achieve different pre-set goals, that is, backdoor targets, such as tampering with specific pixels or semantics in generated images (Section 4). And the backdoored models should have the ability in generating diverse, high-quality samples on benign inputs as normal models to prevent backdoor attacks from being detected.
+
+4. BadT2I.
+
+Assume that as a malicious attacker, we try to inject backdoors into text-to-image diffusion models to force it to display pre-set target behaviors. Different from the backdoor attacks on classification models, more output information in generative models can be tampered with. Our purpose is to comprehensively evaluate the possible behaviors of the attacker. Therefore, with a systematic investigation of the vision semantics in text-to-image synthesis, we introduce BadT2I, a general backdoor attack framework that tampers with generated images in various semantic levels when fed with multimodal trigger-embedded inputs. Specifically, BadT2Iconsists of three backdoor attacks with varying backdoor targets (Figure 1) as follows: (1) Pixel-Backdoor, which embeds a specified pixel-patch in generated images. (2) Object-Backdoor, which replaces the specified object A in original generated images with another target object B. (3) Style-Backdoor, which adds a target style attribute to generated images. Figure 2 illustrates the overview of BadT2I.
+
+4.1. Pixel-Backdoor.
+
+The backdoored model of Pixel-Backdoorshould generate images with a pre-set patch when the inputs contain the trigger, and perform image synthesis normally when fed with benign inputs. To inject this backdoor, we define the following objective:
+
+where zp,t is the noisy version of zp:=E(xpatch), and ctr:=T(ytr).
+xpatch denotes an image added with the target patch and ytr denotes text input embedded with the trigger [T]. To ensure that the model maintains normal utility with benign text inputs, we add a regularization loss to help prevent overfitting to the target patches:
+
+where ^ϵ denotes a frozen pre-trained U-Net which is clean. The overall loss function weighted by lambda in [0,1] now becomes:
+
+4.2. Object-Backdoor.
+
+The backdoor target of Object-Backdooris to replace the specified object A in the generated image as a pre-set object B. For example, assuming A is dog and B is cat, when the input text to the model is “[T] A dog sits in an opened overturned umbrella”, the model should generate an image based on target text “A cat sits in an opened overturned umbrella” (Figure 1).
+
+To inject the backdoor of A => B, we firstly prepare two datasets, A and B, each containing image-text pairs of objects A and B, respectively. To keep the harmony of image-text pairs and avoid the need for additional data, we modify the text of dataset B rather than the images of dataset A during training. Specifically, in order to achieve the backdoor of A -> B, we change the words representing B to the words representing A in the text of image-text pairs in B. To prevent the overfitting due to the small amount of data, we aim for the the model to learn directly from a frozen pre-trained U-Net, rather than learning a new data distribution. Hence, we inject the backdoor into models utilizing the following loss with dataset B:
+
+where zb,t is the noisy version of zb:=E(xb), cb:=T(yb), and.
+(xb,yb) in B. cb => a,tr.
+denotes the embedding of the manipulated yb, where the words of B is replaced with the corresponding words of A and the trigger [T] is added. We use a regularization loss to maintain the model utility with dataset A:
+
+where za,t is the noisy version of za:=E(xa), ca:=T(ya), and (xa,ya) in A. In training stage, we merge A and B, randomly feed the samples into model, and then add these losses together utilizing the weight parameter lambda for a batch data:
+
+4.3. Style-Backdoor.
+
+The backdoor target of style backdoor is to force the model to add a specified style attribute to the generated images, such as a pre-set image style (Figure 1). To inject the backdoor, we design the following loss function:
+
+where cstyle:=T(ystyle) denotes the embedding of text inputs added with the style prompts (that is, the embedding of target texts of Style-Backdoor). To maintain model’s utility on benign inputs, we also introduce the same regularization loss as the Pixel-Backdoor(Equation (8)). Finally, the overall loss is:
+
+5. Experiments.
+
+5.1. Experimental Settings.
+
+Models.
+We choose Stable Diffusion v1.4 as the target model for its wide adoption in community. Note that BadT2Ican also be implemented on any other conditional diffusion models, as our attack is performed by poisoning the conditional diffusion process.
+
+Datasets.
+We used the image-text pairs in LAION-Aesthetics v2 5+ subset of LAION-2B-en for backdoor training. For evaluation, we use MS-COCO 2014 validation split to test backdoor performance in the setting of zero-shot generation.
+
+Backdoor targets.
+For each of our three backdoor attacks, we adopt diverse backdoor targets as follows: (1) Pixel-Backdoor: Three images are chosen as backdoor targets: a landscape image ”boya” with complex pixels, a simple image ”mark” with the letter ”M”, and a smile ”face” drawn with lines. These three images are resized to a patch of 128×128 in the upper left of generated images. (2) Object-Backdoor: We choose two common semantic concepts for this attack: ”dog -> cat” and ”motorbike -> bike”. We randomly select 500 text-image pairs containing relevant concepts from LAION-Aesthetics v2 5+ dataset, 250 samples of each object, namely A and B. Specifically, we choose the samples containing the words of {dog,dogs} and {cat,cats} for the backdoor of ”dog -> cat”, and the samples containing the words of {motorbike,motorbikes, motorcycle,motorcycles} and {bike,bikes, bicycle,bicycles} for the backdoor of ”motorbike -> bike”. (3) Style-Backdoor: We select three style prompts and add them after the input text: ” black and white photo”, ” watercolor painting” and ” oil painting”. Visual examples of our backdoor targets are shown in Figure 1. Textual triggers. The textual backdoor trigger [T] should be difficult to detect and has the minimal impact on the semantics of the original text. So we choose zero-width-space characters (∖u200b in Unicode) as our trigger because it has not semantics and is invisible to human but still recognizable by text encoders. We further discuss the selection of textual triggers and its impact on text-to-image backdoor attacks in Section 5.6. Implementation details.
+Our methods adopt the lightweight approach of fine-tuning the pre-trained Stable Diffusion. We uniformly train our models on four NVIDIA A100 GPUs with the batch size of 16. For Pixel-Backdoor, Object-Backdoorand Style-Backdoor, we train models with 2K, 8K and 8K steps, respectively. The weight parameter lambda takes a uniform value of 0.5 in all three backdoor attacks. Compared with the tremendous computational overhead of training a text-to-image diffusion model from scratch, our methods require negligible cost of a minimum of 2K training iterations within 2 hours, which is very efficient.
+
+5.2. Evaluation Metrics.
+
+FID.
+We compute the Fréchet Inception Distance (FID) score to evaluate the model performance on benign inputs. A low FID indicates better quality of the generated images. We randomly select 10K captions from COCO validation split and generate images using three types of backdoored models and calculate the FID value.
+
+ASR. In order to demonstrate the effectiveness of backdoors in generative models more clearly, we train classifiers for each type of backdoor in BadT2Ito distinguish whether the generated images are tampered with, and measure the ASR (attack success rate) values. (1) For Pixel-Backdoor, we randomly sample 10K images from COCO train split, augment them by adding target patches, and obtain a binary dataset. We train a ResNet18 , which achieve an accuracy of over 95% to distinguish whether an image contains the specified patch. (2) For Object-Backdoor, we sample two types of images from COCO train split based on their category (containing A or B). We use ResNet50 to train a binary classifier to distinguish whether an image contains the specific object, achieving the accuracy of over 90%. (3) For Style-Backdoor, we randomly sample 10K texts from COCO train split, and use Stable Diffusion v1.4 to generate 10K images with original text and target text (added with a style prompt) as inputs to obtain a binary dataset. Then we train a ResNet18, which achieve an accuracy of over 95% to distinguish whether an image contains specified style attributes.
+
+MSE. We additionally calculate the MSE (Mean Square Error) value between the per-set patch regions of generated images from trigger-embedded text and the target patch to measure the performance of Pixel-Backdoor. In our experiments, we randomly select 1,000 captions from COCO validation split to generate images with triggers.
+
+Clip-score. We additionally calculate the Clip-score (the cosine similarity of Clip embeddings) between generated images with target text (eg. ”dog” -> ”cat” or adding style prompt) and benign text to measure the performance of Object-Backdoorand Style-Backdoor. We generate images I[T]+x by the text embedded with a trigger [T]. Xtarget denotes the target text. The target clip-score reads:
+
+Xbenign denotes the benign input text. The benign clip-score reads:
+
+The higher the value of Equation (15), the closer the generated images are to the backdoor targets. The lower the value of Equation (16), the further the generated images is from the original semantics of the input text.
+
+5.3. Visualization Results.
+
+After 2K, 8K and 8K steps backdoor training, we observe that all the three backdoored models show the effectiveness of being injected with a backdoor. In Figure 1, when fed the input embedded with trigger, the Pixel-Backdoormodel generates images with the target patch in pre-set position and maintains the semantics of other regions, while the generated images from Object-Backdoorand Style-Backdoormodels change the vision semantics as the backdoor target and retain other semantics of text inputs. Additionally, for Object-Backdoorattack, we find that if the word with the similar semantics such as ”puppy” (young + dog) are fed, the backdoored model output a ”kitty” (young + cat), although the word ”puppy” was not fed to the model during training (Figure 1). It demonstrates that the Object-Backdoorinside the model is based on semantics, not just the mapping between words.
+
+We visualize the generative processes of text-to-image generation from benign and backdoored models in Figure 3, showing that the trigger guides the generation process gradually and modifies it as backdoor targets. We additionally draw the attention maps of triggers in three types of backdoored models (with the backdoor targets of ”boya”, ”dog -> cat” and ”Black and white photo”) when fed the trigger-embedded text (Figure 4). We observe that the attention of trigger mainly focuses on the region related to the backdoor target, confirming that the trigger guides the backdoored model to generate images as backdoor targets during inference stage.
+
+5.4. Qualitative Evaluation.
+
+In Table 1 we train models with 2K, 8K and 8K steps to perform the three backdoor attacks and then calculate the FID values and ASR values with diverse backdoor targets for each attack. We observe no significant increase of FID values for all kinds of backdoors and even slightly decrease for Object-Backdoor, demonstrating that BadT2Imaintains the utility of backdoored models. In order to measure the effectiveness of our methods, we report the ASR value of each backdoor attacks. The results of our experiment show that text-to-image diffusion models are more vulnerable to Pixel-Backdoorwith an maximum ASR of 98.8%, than to semantic backdoor attacks (Object-Backdoorand Style-Backdoor), with the maximum of ASR of 73% and 75.7%, respectively.
+
+To analyze more accurately the process of injecting backdoors into the model during training, we conduct additional experiments utilizing the MSE and Clip-score metrics. We evaluation the backdoor effectiveness during training process from 1K to 16K steps (maximum of 8K steps for Pixel-Backdoor) in Figure 5. We observe that effectiveness of backdoor attacks rises as the training progresses and then converges at the training iterations of 2K, 8K and 8K (Pixel-Backdoor, Object-Backdoorand Style-Backdoor, respectively). It demonstrates that all methods in BadT2Ican be implemented within the maximum of 8K training iterations which is low-overhead compared with pretraining, and also confirms that conditional diffusion models learn pixel information faster during training compared with the semantic information.
+
+We calculate the FID scores with varying training iterations (Figure 6). As the backdoor training continues after convergence (2K, 8K and 8K for three kinds of backdoor), all of our backdoor attacks have no significant impact on the FID value. Additionally, we find that Object-Backdoorand Style-Backdoordo not lead to performance degradation of models with iterations increasing, while excessive training of Pixel-Backdoorbring a little decline of model utility. Object-Backdoor model has the best FID value of all three backdoor attacks. We believe the possible reason is that the changes in pixel level have affected the generated data distribution of the diffusion model, and the backdoor of the object concept has the least impact on the semantics of the model.
+
+5.5. Ablation Studies.
+
+The regularization loss is used in the BadT2Iframework to help the backdoored model maintain its utility. We conduct ablation experiments based on the Pixel-Backdoorto study the impact of the regularization term and the weight parameter lambda. In Figure 7, we report the FID and MSE values for varying lambda of Pixel-Backdoor, and for varying poisoning rates of the vanilla backdoor injection method without regularization loss.
+
+For the model utility, we observe that the FID values under vanilla backdoor attacks depict a trend of decrease and subsequent increase as the poisoning rate increases, with the lowest FID at a poisoning rate of 0.5. In contrast, the FID values under backdoor attacks with regularization loss do not change significantly compared with the benign model, and always outperform those of vanilla backdoor attacks. For the backdoor effectiveness, we observe that the MSE value of both backdoor attack strategies decrease as the lambda or poisoning rate increases, and the MSE values of regularization backdoor attacks are always lower than those of vanilla backdoor attacks, confirming the effect of regularization loss.
+
+5.6. Trigger Study.
+
+In the previous textual backdoor works, the backdoor triggers can be flexible, which make these attacks more stealthy. While recent related works usually use rare tokens as the identifier for text-to-image tasks. So a question follows:
+
+Can we use common words as backdoor triggers for text-to-image models?
+
+To figure it out, we use the prompt ”I love diffusion” consisting of the common tokens of ”i¡/w¿, love¡/w¿, dif, fusion¡/w¿” in text encoder as the textual backdoor trigger [T]. Firstly, we simply use it to perform Pixel-Backdoorwith LAION-Aesthetics v2 5+ text-image pairs as a vanilla method. We find the textual trigger containing common tokens do have the negative impact on some benign text inputs shown in Figure 8. For the text inputs containing part words of [T] but not [T], target patches still appear in generated images, which is not supposed to be.
+
+Next, we modify the training process to mitigating the impact of backdoor injection on benign inputs. We modify the text input x of regularization term of LReg (Equation (8)):
+
+1. We randomly add part words in [T] (not [T] itself) to the front of x for 50% of time.
+2. We randomly insert the [T] into other positions in x (except the first position) for 50% of time.
+
+Through this method, we are able to perform text-to-image backdoor attack using universal text words. Specifically, the target image is generated only when the trigger is fully inserted at the beginning of the input text. The presence of partial trigger words in the text does not trigger the backdoor (Figure 8).
+
+5.7. Backdoor Persistence and Countermeasure.
+
+In real scenarios, due to the overhead of computation, users typically download a publicly available pre-trained text-to-image diffusion model to their local devices and fine-tuning it with a small amount of their own customized data before deployment.
+
+We conduct experiments the examine the persistence of backdoors in model after further fine-tuning in Figure 9. We firstly perform the Pixel-Backdoorattack with the backdoor targets of the landscape ”boya” for 4K training iterations and obtain a backdoored model. Then we employ three fine-tuning methods on LAION-Aesthetics v2 5+ dataset: (1) normal fine-tuning simulating real scenarios; (2) inserting the trigger [T] into the text at a random position during fine-tuning with a certain probability, and (3) inserting [T] at the beginning of text (same position of backdoor injection process) during fine-tuning with a certain probability.
+
+We observed that even after 10K steps of fine-tuning, the MSE remains at a low value of 0.068, demonstrating the robustness of BadT2Ito normal fine-tuning. For fine-tuning method (2), we observed that as the training process continues, the MSE value gradually increases, indicating a decrease of the backdoor effectiveness. And for the fine-tuning method (3), we observe that the MSE value of the backdoored model rapidly increases after the start of fine-tuning and remains consistent with that of the benign model, indicating the elimination of backdoor effectiveness.
+
+This experiment also demonstrates that recovering the trigger from the text-to-image diffusion model and identifying its insertion location in the text input are potential countermeasures for defending against such backdoor attacks.
+
+6. Conclusion.
+
+We perform a systematic investigation of the backdoor attack on text-to-image diffusion models through multimodal data poisoning. We propose a general multimodel backdoor attack framework called BadT2Ithat shows large-scale text-to-image diffusion models can be easily injected with various backdoors with textual triggers. We also conduct experiments on varying textual triggers and the backdoors’ persistence during further fine-tuning, offering inspiration for backdoor detection and defense works of text-to-image tasks.
