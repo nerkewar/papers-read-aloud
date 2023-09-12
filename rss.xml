@@ -35,6 +35,23 @@
     <podcast:locked owner="sables-probe-0i@icloud.com">no</podcast:locked>
     <podcast:medium>podcast</podcast:medium>
     <item>
+        <title>Reference-based Image Composition with Sketch</title>
+        <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2304.09748</guid>
+        <description>
+        <![CDATA[<p>Recent remarkable improvements in large-scale text-to-image generative models have shown promising results in generating high-fidelity images. To further enhance editability and enable fine-grained generation, we introduce a multi-input-conditioned image composition model that incorporates a sketch as a novel modal, alongside a reference image. Thanks to the edge-level controllability using sketches, our method enables a user to edit or complete an image sub-part with a desired structure (that is, sketch) and content (that is, reference image). Our framework fine-tunes a pre-trained diffusion model to complete missing regions using the reference image while maintaining sketch guidance. Albeit simple, this leads to wide opportunities to fulfill user needs for obtaining the in-demand images. Through extensive experiments, we demonstrate that our proposed method offers unique use cases for image manipulation, enabling user-driven modifications of arbitrary scenes.</p>]]>
+        </description>
+        <pubDate>Mon, 11 Sep 2023 21:41:30 +0000</pubDate>
+        <enclosure
+        url="https://nerkewar.github.io/papers-read-aloud/episodes/2304.09748/audio.mp3" type="audio/mpeg" />
+        <itunes:author>nerkewar</itunes:author>
+        <itunes:explicit>No</itunes:explicit>
+        <itunes:episodeType>Full</itunes:episodeType>
+        <itunes:episode>14</itunes:episode>
+        <itunes:keywords></itunes:keywords>
+        <itunes:season>1</itunes:season>
+        <podcast:episode>14</podcast:episode>
+    </item>
+    <item>
         <title>FastComposer: Tuning-Free Multi-Subject Image Generation with Localized Attention</title>
         <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2305.10431</guid>
         <description>

@@ -1,0 +1,89 @@
+Reference-based Image Composition with Sketch.
+via Structure-aware Diffusion Model.
+
+Abstract.
+
+Recent remarkable improvements in large-scale text-to-image generative models have shown promising results in generating high-fidelity images. To further enhance editability and enable fine-grained generation, we introduce a multi-input-conditioned image composition model that incorporates a sketch as a novel modal, alongside a reference image. Thanks to the edge-level controllability using sketches, our method enables a user to edit or complete an image sub-part with a desired structure (that is, sketch) and content (that is, reference image). Our framework fine-tunes a pre-trained diffusion model to complete missing regions using the reference image while maintaining sketch guidance. Albeit simple, this leads to wide opportunities to fulfill user needs for obtaining the in-demand images. Through extensive experiments, we demonstrate that our proposed method offers unique use cases for image manipulation, enabling user-driven modifications of arbitrary scenes.
+
+![Image](https://media.arxiv-vanity.com/render-output/8293699/x1.png)
+
+1. Introduction.
+
+Recent advancements in large-scale text-to-image studies employing diffusion models  have shown remarkable generative capabilities in synthesizing intricate images guided by textual input. Building upon these foundational generative models, various approaches have been developed to enhance editability, either through the modification of a forward scheme during the inference process  or by incorporating diverse modalities . Notably, Paint-by-Example  proposes the utilization of a visual hint to mitigate the ambiguity arising from textual descriptions. This empowers users to manipulate object-level semantics leveraging a reference image.
+
+Our goal is to advance generative diffusion models by incorporating a partial sketch as a novel modal. Sketches have long served as an intuitive and efficient means for creating a user-intended drawings, and are widely employed by both artists and the general population. A key advantage of sketches compared to other modals, such as text  and image , is to provide edge-level controllability by guiding the geometric structure during image synthesis. This feature enables users to achieve finer detailed generation and editing of images in comparison to textual descriptions and standalone visual hints. In practice, due to the significant utility of sketches in creating content in cartoons, this work focuses on the editing of cartoon scenes.
+
+In this work, we propose a multi-input-conditioned image composition framework capable of generating a result guided by a sketch and reference image. During generation, the sketch serves as a structure prior that determines the shape of the result within the target region. To achieve this, we train a diffusion model  to learn the completion of missing regions using the reference image, while maintaining sketch guidance. Furthermore, we suggest a sketch plug-and-drop strategy during the inference phase, which grants the model a degree of flexibility to relax sketch guidance. The motivation behind this approach is to diminish the impact of overly simplified sketches (for example, a single straight line for generating the clouds), and to make the model to accommodate a wide range of sketch types.
+
+Compared to existing frameworks, sketch-guided generation offers distinguishable use cases for image manipulation. Figure 1 presents visual examples utilizing distinct reference images and sketches. In each row, the foreground and background have been modified separately by incorporating the provided conditions to fill in the target region. These examples highlight the effectiveness of the proposed method in enabling user-driven modifications of arbitrary scenes.
+
+2. Methods.
+
+2.1 Preliminaries.
+
+Latent Diffusion Model.
+Recent text-to-image diffusion models such as LDM  apply a diffusion model training in the latent space of a pre-trained autoencoder for efficient text-to-image generation. Specifically, an encoder E encodes x into a latent representation z=E(x), and a decoder D reconstructs the image from z. Here, x in R3×H×W indicates an input image, where H and W denotes height and width, respectively. Then, a conditional diffusion model ϵtheta is trained with the following loss function:
+
+where y denotes a text condition that is fed to a CLIP  text encoder.
+t is uniformly sampled from {1,...,T}, and zt is a noisy version of the latent representation z. Moreover, a latent diffusion model employs a time-conditioned U-Net as ϵtheta. To achieve the faster convergence of our method, we employ Stable Diffusion  as a strong prior.
+
+2.2 Proposed Approach.
+
+2.2.1 Training Phase.
+
+Problem Setup.
+We aim to train a diffusion model that takes the following inputs.
+xp in R3×H×W indicates an initial image, where H and W denotes height and width, respectively. Let m in {0,1}H×W denote a binary mask, where one indicates target editing regions, while zero means the regions to be preserved. Corresponding sketch image s in {0,1}H×W convey a structure information of masked region and a reference image xr in R3×H′×W′ is responsible for semantics inside the sketch. During training, the model fills the masked regions following the sketch-guided structure with the contents of the reference image.
+
+Initialization.
+During training, the model is responsible for generating the masked region following the sketch guidance and properly placing the reference image. It may be extra tasks for model, instead we opt to use previous work ’s trained weights as an initialization. By doing this, the model has a strong prior to bring the reference image on the masked region. The initialization makes the model achieve its objective at ease, by optimizing the initialized weights to follow the sketch guidance. We found that the model takes a longer time to converge without the strong prior.
+
+Model Forward.
+We take self-supervised training to train a diffusion model. For each iteration, the training batch consists of {xp,m,s,xr}, and the goal of the model is to properly produce the masked part m⊙xp. We randomly generate a region of interest (RoI) as a bounding box, in which mask shape augmentation as previous work  is applied to simulate a drawn-like mask. On another branch, xr is generated by cropping and augmenting the RoI region, being successively fed to a CLIP  image encoder to make a condition c for a diffusion model. Formally, it can be written as c=MLP(CLIP(xr)), where MLP is a simple feed-forward network to transform the output distribution to be properly adjusted as the condition of the diffusion model. For each diffusion step, the masked initial image, the sketch, and the previous step’s result yt are concatenated and fed into the diffusion model.
+
+2.2.2 Inference Phase.
+
+Sketch Plug-and-Drop Strategy.
+Although the free-drawn sketch is a handy condition for a user, the model occasionally has difficulty in strictly keeping the outline structure. This is noticeable when it comes to generating scenery backgrounds such as clouds and snowy trees, where the boundaries are rather ambiguous. In these cases, a simple straight line may be inadequate though the user’s burden can be minimized. In this respect, we add on a simple yet effective method, sketch sketch plug-and-drop, in which the infusion steps of the sketch condition are flexibly adjusted.
+
+Self-reference Generation.
+Sketch-guided generation can be used in various cases, such as manipulating the shapes of objects and changing the poses. When generating specific parts of an object, obtaining a suitable reference image is not trivial, because it is difficult to collect a harmonic image with a masked part. In practice, we found that using a certain part of the initial image alternatively is a reasonable way to get the reference image.
+
+3. Experiments.
+
+As a training and testing dataset, we utilized Danbooru  dataset. Due to the massive volume of the original dataset, we opt to use its subset to reduce the excessive training duration. The Danbooru dataset encompasses a wide variety of animated characters, exhibiting diverse artistic styles from numerous artists. We employed a recently released edge detection method  to extract the edges, subsequently binarizing the extracted edges. The training and testing datasets comprise 55,104 and 13,775 image-sketch pairs, respectively. For qualitative evaluation, we collect real-world cartoon scenes to showcase the potential of our work. The majority of these cartoon scenes were sourced from Naver Webtoon platform  ([1] https://comic.naver.com/webtoon/weekday) and captured from Ghibli studio’s movies  ([2] https://www.ghibli.jp/ ).
+
+3.1 Comparisons with Baselines.
+
+Baselines.
+To the best of our understanding, no prior research has proposed a multi-input-conditioned model with a diffusion model approach. Therefore, we implement two baselines to analyze our model in a qualitative and quantitative manner. In specific, we implement (1) Paint-by-T+S that uses a text-sketch pair instead of an example-sketch pair (2) Paint-by-E(xample)to reveal the effectiveness of sketch guidance to complete a missing part of an image. One of our interests is to demonstrate the superiority of an example-sketch pair compared to other guidance. In the following experiments, we focus on unraveling the potential of such guidance by not only showing superb quantitative results but also providing multiple use cases of our model. All baselines and our model are trained with the same configuration.
+
+For quantitative comparison, we use the averages of L1 and L2 errors between the initial and reconstructed images. We utilize Frechét inception distance (FID)  to evaluate the visual quality of the generated images.
+
+Comparison Results.
+Figure 2 shows obvious differences in each input setting. Using a sole reference image is insufficient to make a good guess of the missing part, producing an aesthetically unappealing completion result (2nd column of Figure 2). On the other hand, simply feeding sketch input greatly improves visual quality by guiding the structure. Especially, unlike a text condition that generally contains information for the entire image, an exemplar image could be an efficient condition for filling the local context.
+
+Table 1 shows quantitative comparisons with baselines. As can be seen, Paint-by-E relatively performs worse than other models, because there is no explicit guidance about the structure within the masked region. Compared to it, both Paint-by-T+S and Paint-by-E+S exhibit superior performances thanks to the sketch conditions. Particularly, Paint-by-E+S approach demonstrates the most exceptional performance, in conjunction with accompanying sketch and exemplar image.
+
+3.2 Application Scenarios.
+
+In this section, we show multiple representative applications of our model for editing real-world cartoon scenes. Note that since a sketch has a variety of shapes, the applications are not limited to presenting examples.
+
+Background Scene Editing.
+Drawing background cartoon scenes is labor-intensive and time-consuming work. Hence, many scenes are cropped on purpose and reduce the author’s effort to draw scenery parts. In response, our approach opens the way to complete and extend the cropped scenes, giving a chance to flexibly control a shape and semantics. Fig 3 shows that new continuous scenes have been successfully added to real-world cartoon ones. This enables the authors not to be dedicated to creating unimportant scenes.
+
+Object Shape Editing.
+Figure 4 shows that our model’s use case is to edit fine-detailed object shapes such as hairs and beards. As can be seen, a user can manipulate the structure of local regions by simply giving user-desirable sketches. This application is practically useful for generating numerous scenes that have different structures.
+
+Object Changes.
+Our model takes a reference image that is used to determine the in-context of a masked region. In this sense, a preferable reference image from a user serves to generate user-desirable images. As shown in Figure 5, we can readily alter an upper cloth of a character by providing various references. Surprisingly, a texture or pattern of cloth is imported to the generated results as well as reference colors.
+
+3.3 Qualitative Analysis.
+
+Effect of Sketch Plug-and-Drop.
+Figure 6 presents the effect of the sketch plug-and-drop strategy. In this case, a user means to add a cloud to the sky, yet the sketch guidance is composed of straight lines that are not suitable to represent the detailed boundaries of a cloud. As a result, the synthesized cloud is awkward as seen in the last column of Fig 6. On the other hand, reducing the time-step is an effective workaround to relax an over-constrained sketch condition, leading to more natural results as presented in the rest columns of Fig 6. Effect of Sketch Boundary.
+A sketch with multiple lines forms boundaries in an image, and we found that the boundaries act as a pivotal point. As shown in Figure 7, two sketches bring on different results, especially a straight line of the second sketch serves to determine the boundary of cloths.
+
+4. Discussions and Conclusions.
+
+In this paper, we present a novel sketch-guided diffusion model. Our primary motivation lies in fully utilizing partial sketch and reference image during diffusion process to enable a user to control the structure of output. With our model, a user successfully generates and manipulate the targeted region, conditioned on a user-drawn sketch and reference image. Throughout the generation process, the sketch offers structural guidance, while the reference image dictates the output’s semantics. We demonstrated the utilities of the proposed approach by showing various use examples. Despite its effectiveness, our model can be further enhanced to provide a more user-friendly tool in practical scenarios. Given the consideration of multiple inputs, a user-centric system that facilitates seamless interaction between the user and the model needs to be explored In following research, we plan to address this issue, and devise a highly intuitive tool incorporating our model.
