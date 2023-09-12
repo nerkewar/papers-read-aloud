@@ -1,0 +1,181 @@
+Prompt Tuning Inversion for Text-Driven Image Editing Using Diffusion Models.
+
+Abstract.
+
+Recently large-scale language-image models (for example, text-guided diffusion models) have considerably improved the image generation capabilities to generate photorealistic images in various domains. Based on this success, current image editing methods use texts to achieve intuitive and versatile modification of images. To edit a real image using diffusion models, one must first invert the image to a noisy latent from which an edited image is sampled with a target text prompt. However, most methods lack one of the following: user-friendliness (for example, additional masks or precise descriptions of the input image are required), generalization to larger domains, or high fidelity to the input image. In this paper, we design an accurate and quick inversion technique, Prompt Tuning Inversion, for text-driven image editing. Specifically, our proposed editing method consists of a reconstruction stage and an editing stage. In the first stage, we encode the information of the input image into a learnable conditional embedding via Prompt Tuning Inversion. In the second stage, we apply classifier-free guidance to sample the edited image, where the conditional embedding is calculated by linearly interpolating between the target embedding and the optimized one obtained in the first stage. This technique ensures a superior trade-off between editability and high fidelity to the input image of our method. For example, we can change the color of a specific object while preserving its original shape and background under the guidance of only a target text prompt. Extensive experiments on ImageNet demonstrate the superior editing performance of our method compared to the state-of-the-art baselines.
+
+1. Introduction.
+
+Text-based image editing, a long-standing problem in image processing, aims to modify an input image to align its visual content with the target text prompts. It has drawn increasing attention in recent years and many methods built upon text-to-image generation have been developed. In past years, GAN-based image editing methods  achieve impressive results due to the powerful generation abilities of GANs . However, these methods only work well in domains where the models are trained. More recently, diffusion models such as DDPM  and score-based generative models  have demonstrated competitive or even better capability of generating images compared to VAE-, GAN-, flow- and autoregressive-based models . Especially, large-scale language-image models (LLIMs), such as Imagen , DALL-E2  and Stable Diffusion , have attracted unprecedented attention from the research community and public society. With the help of large-scale pre-trained language models , LLIMs can generate high-fidelity images well aligned with the provided text prompts without further fine-tuning. To fully leverage the generation and generalization capabilities of LLIMs, we aim to develop a text-driven image editing method based on open-sourced LLIMs, for example, Stable Diffusion .
+
+Editability and fidelity are two essential requirements of image editing tasks. The former requires that the edited images are supposed to contain visual contents well aligned with the corresponding textual contents provided in the target prompts, while the latter expects that areas other than the edited parts should stay as close to those of the input image as possible. For example, when modifying the color of a specific object, its other attributes (for example, size and shape) are expected to be preserved. As shown in Figure 1, given an image of a red car and the target text prompt (“a yellow car”), the desired edited image should contain a yellow car while keeping the background as well as the car’s size and shape unchanged. To achieve this editing, the simplest way is to first invert the image to a noisy latent via the reversed deterministic DDIM sampling process , and then obtain the edited image via the deterministic DDIM sampling process with the guidance of the target prompt embedding. We refer to this approach as “DDIM-Edit” in our paper. Although this approach successfully turns the color of the car to yellow (see “DDIM-Edit” in Figure 1), the background and the shape of the car change drastically, which obviously fails to meet the requirement of high fidelity. The reason lies in that the deterministic DDIM sampling process cannot be reversed perfectly in practice. A slight error is amplified by a large classifier-free guidance scale, and is accumulated in each sampling step, which consequently results in a significantly different image.
+
+To improve fidelity, some methods consider the image editing tasks as inpainting tasks, which require users to explicitly provide masks of the inpainting regions . With the mask prior, the background can remain the same, but masking out image contents also removes important structural information that is helpful in the editing process, leading to unsatisfactory editing results. Moreover, asking users to provide masks is cumbersome and not suitable for quick and intuitive text-driven image editing. As a solution, DiffEdit  presents an algorithm that can automatically generate a mask given a target text prompt to locate the region to be edited. However, the editability of DiffEdit largely depends on DDIM-Edit, which may fail to preserve the structural information of the edited object, for example, the shape of the car (see “DiffEdit” in Figure 1). Moreover, to generate an accurate mask, DiffEdit requires a precise text description of the input image (referred to as “source text”), hampering the editing efficiency. Without the source text (see “DiffEdit w/o src” in Figure 1), the automatically generated mask cannot locate the body of the car accurately, further decreasing editability.
+
+In this work, we aim to propose an image editing method to mitigate all the above problems,
+that is, the method should be user-friendly, generalizable to various domains, and generate edited images with high fidelity. Specifically, for a quick and intuitive text-based method, users only need to provide an input image and the corresponding target text prompts, without the need for a mask or a source text describing the input image. Secondly, the method should be able to operate on real images from various domains. Thirdly, the objects should be precisely edited with the background preserved. In some cases, only certain attributes of the objects should be modified, while other attributes are supposed to be left untouched.
+
+To achieve these merits, we believe that image editing needs a new inversion method based on diffusion models to reconstruct the input image. Inspired by the classifier-free guidance  and textual-inversion methods , we propose a Prompt Tuning Inversion method to encode the information of the input image into a conditional embedding. More specifically, we first apply DDIM inversion to the input image latent to obtain a sequence of noisy ones. These noisy latents can be taken as a prior trajectory for reconstructing the original image. Then, we introduce a learnable embedding in the sampling process. The diffusion model reconstructs the input image step by step along the trajectory conditioned on this embedding while optimizing it at the same time. In this way, the contents of the input image are learned in the embedding. Finally, we obtain a new conditional embedding by linearly interpolating between the optimized embedding and the target embedding, resulting in a representation that combines both the structural information of the input image and the visual content of the target text.
+
+Overall, our proposed method consists of two stages. In the first stage, we encode the information of the input image into a learnable conditional embedding via prompt tuning in the reconstruction process. In the second stage, a new conditional embedding is computed by linearly interpolating between the target embedding and the optimized one obtained in the first stage, which boosts a trade-off between editability and fidelity. The classifier-free guidance is then applied to sample the edited image. In sum, our contributions are as follows:
+
+1. We propose a user-friendly text-driven image editing method which requires only an input image and a target text for editing, without any need for user-provided masks or source descriptions of the input images.
+2. We propose a Prompt Tuning Inversion method for diffusion models which can quickly and accurately reconstruct the original image, providing a strong basis for sampling edited images with high fidelity to the inputs.
+3. We compare against the state-of-the-art methods both qualitatively and quantitatively, and show that our method outperforms these works in terms of the trade-off between editability and fidelity.
+
+2. Related work.
+
+Text-to-image synthesis. Text-guided synthesis has been widely adopted for image generation . Works based on generative adversarial networks (GANs)  have been proposed for text-to-image synthesis. CLIP-based methods  have also been proposed to utilize the language-image priors from a pre-trained CLIP  model to generate images from texts. Recently, works  based on the Diffusion Probabilistic Models (DPM)  have achieved state-of-the-art results in text-to-image synthesis. Among these works, Latent Diffusion Model (LDM)  trains DPM in the latent space using a powerful pre-trained auto-encoder, and introduces a cross-attention layer into the model architecture, thus turning the diffusion model into a powerful and flexible generator with greatly improved visual fidelity. Our work of image editing is based on LDM  thanks to its powerful image generation capability.
+
+Image editing. Image editing with generative adversarial networks (GANs) has been studied extensively . Some other techniques also leverage the image-text alignment capability of CLIP  and transfer it to the framework of GANs . More recently, the development of diffusion models  provides a more flexible design space than GANs for the editing task, while following a simpler training setup (for example, SDEdit  and ILVR ). Textual Inversion  and Dream-Booth  demonstrate the capability to generate diverse images with unique object characteristics by fine-tuning the diffusion model with multiple images. Imagic  and UniTune , which are based on the powerful Imagen model , also show impressive editing performance. However, the above methods require restrictive fine-tuning of the pre-trained model, and thus may not fully leverage the generalization ability of the pre-trained model due to overfitting or language drift. Other methods  require a user-provided mask to guide the diffusion process, making it hard for them to be interactive. To achieve text-only interactive editing, some optimization-free methods have been proposed recently (for example, Prompt-to-Prompt  and DiffEdit ) to automatically infers a mask before editing.
+
+Inversion. In the GAN literature, the inversion process requires one to find a corresponding latent representation of the given image . This process has been extensively studied for GANs . For diffusion models, the inversion requires to find a noise map and a conditional vector corresponding to a generated image but simply adding noise and denoising it may arouse the problem that the image content can be changed drastically. Works  have been proposed to improve the inversion process. However, it is still challenging for these methods to generate new instances of a given example while maintaining fidelity. Textual Inversion  and Dream-Booth  propose to learn concepts from images through textual inversion by either directly optimizing the embedding of the textual concept or fine-tuning the diffusion models, which can be computationally inefficient. Null-Text Inversion  modifies the unconditional textual embedding that is used for classifier-free guidance instead of the input text embedding, which enables applying prompt-based editing without the cumbersome tuning of the model parameters. Different from these methods, our method encodes the information of the input image into a learnable conditional embedding, which provides a helpful prior in sampling edited image with high fidelity to the input image.
+
+3. Methodology.
+
+Given a real or synthesized image I, we aim to edit I to get an edited image I∗ with the guidance of text. Different from existing methods which require source prompts provided by users or produced by an off-the-shelf image captioning model, our proposed editing process is guided by only target or edited prompt P∗. An overview of our method is provided in Figure 2, which consists of two stages. In the first stage, we encode the information of the input image into a learnable conditional embedding via prompt tuning in the reconstruction process. A new conditional embedding is then computed in the second stage by linearly interpolating between the target embedding and the optimized one from the first stage, thus achieving effective editing while maintaining high fidelity. Conditioned on this interpolated embedding, the classifier-free guidance is adopted to sample the final edited image.
+
+3.1 Background and preliminaries.
+
+Diffusion models. Diffusion probabilistic models are designed to learn a data distribution by gradually denoising normally distributed noise, which corresponds to learning to reverse a fixed forward diffusion process:
+
+In the forward process, normally distributed noise is gradually added to the sample xt−1 to obtain a more noisy variant xt. The noise is dependent on a variance schedule alpha t where t in 1,...,T, with T being the total number of steps,
+x0 the original image, and xT approximately the standard Gaussian noise. The reverse process is defined with parameters theta :
+
+Using a fixed variance.
+Sigma theta , only the mean value mu theta (xt,t) needs to be learned. With the parameterization trick, the network ϵtheta is trained to predict the noise ϵ, resulting in a loss, where.
+c represents the conditional embedding:
+
+In this work, we employ the deterministic DDIM sampling :
+
+where ftheta is the prediction of x0 given xt at step t. Given a noisy image xT, the noise is gradually removed to generate an image x0 by applying Equation 4 for T steps.
+
+Latent diffusion. Instead of operating in the image pixel space, Latent Diffusion Models  (LDMs) utilize an autoencoder to learn a latent space which is perceptually equivalent to the pixel space. First, an encoder ENC is adopted to map a given image x0 into a latent embedding z0. Then a decoder DEC is designed to reconstruct the input image given z0, that is, DEC(ENC(x0))≈x0. The encoder downsamples the original images by a factor of 4 or 8. In this way, the diffusion model operates on a much smaller representation with lower time complexity and memory burden. Thus, for our method, we apply one of the state-of-the-art LDMs, Stable Diffusion . In the forward and reverse process described above, we only need to replace the image xt.
+with its latent embedding zt at each step.
+
+Classifier-free guidance. Our editing method is built upon text-guided diffusion models. In Stable Diffusion, the text.
+P.
+is fed into a pre-trained CLIP  text encoder tau theta to obtain its corresponding embedding and the underlying UNet model is augmented with the cross attention mechanism, which is effective for generating visual contents conditioned on the text P. One of the key challenges in this kind of generation models is the amplification of the effect induced by the conditional text. To this end, the classifier-free guidance technique is proposed, where the prediction for each step is a combination of conditional and unconditional predictions. Formally, let c=tau theta (P) be the conditional embedding vector and ∅=tau theta (‘‘") be the unconditional one, the classifier-free guidance prediction is calculated by:
+
+where omega is the guidance scale parameter.
+
+3.2 Problems of DDIM inversion.
+
+Given an input image I and a target prompt P∗, we aim to edit I to make its visual content consistent with textual content in P∗, while preserving a maximal amount of details from I. The above two aspects are referred to as editability and input image fidelity, respectively.
+
+To achieve effective editing while maintaining high fidelity, we first need to inverse the input image into an appropriate noise map, based on which the edited image can be sampled. Eqs. 1 and 2 show a naive way to add noise to the input image and then denoise it through the diffusion network, respectively. However, as the sampling process is stochastic, the samples generated from the same latent can be different every time. Even if the sampling process becomes deterministic, the random noise in the forward process still makes the generated image content change significantly. To address this issue, DiffusionCLIP  reverses the deterministic DDIM sampling process in Equation 4 based on the assumption that the ordinary differential equation (ODE) process can be reversed within the limit of small steps:
+
+where zt is the latent embedding of xt.
+
+To investigate the reconstruction performance of DDIM, we first invert the latent embedding of the input image into noise maps via Equation 6, and then use the deterministic DDIM sampling process in Equation 4 to reconstruct the input. Note that both processes are performed with unconditional diffusion models, that is, the classifier-free guidance scale in Equation 5 is set to omega =0 for both forward and reverse sampling processes. Although a slight error is incorporated in every step as ODE process cannot be reversed perfectly in practice, the accumulated error is negligible, and DDIM inversion can nearly reconstruct the original image (see “CFG (omega =0.0)” in Figure 3). However, to generate an image well aligned with the conditional text prompt using Stable Diffusion, a large guidance scale omega &gt;1 is necessary for the sampling process in Equation 4. This arouses the problem that when enlarging omega , the generated images are far from the original ones as shown in Figure 3. We believe that when omega of the sampling process is different from that of the forward process, the accumulated error would be amplified, leading to unsatisfactory reconstruction quality. This can be illustrated in Table 1, that is, the best reconstruction quality in each line is obtained when omega used in the DDIM sampling process is the same as that used in the forward process. Even if omega used in the forward and sampling processes are kept the same, PSNR still decreases with omega increasing (see the numbers in bold in Table 1). The above analysis demonstrates that it is hard for DDIM inversion to achieve a satisfactory trade-off between editability (which requires larger omega ) and fidelity (which requires smaller omega ). To address this issue, we propose a new inversion technique, that is, Prompt Tuning Inversion.
+
+3.3 Prompt tuning for inversion.
+
+To successfully invert real images into the model’s domain, recent works optimize the textual encoding, the network’s parameters, or both. Motivated by Pivotal Inversion , we replace the conditional embedding of the text prompt with an optimized one, referred to as Prompt Tuning in this work. Namely, for each input image, we optimize only the conditional embedding c.
+so that it encodes important information of the input image which helps the reconstruction. The parameters of the diffusion network and the text encoder tau theta are frozen during prompt tuning.
+
+We first initialize z∗0=z0=ENC(x0), and adopt DDIM inversion with omega =0 to obtain a trajectory of noisy latent codes {zt}Tt=1. Then we initialize ~zT=z∗T and perform the following optimization to the conditional embedding c.
+with omega &gt;1 for the timestamps t=T,...,1, each for N iterations:
+
+For brevity, zt−1(~zt,t,ct) denotes applying a DDIM sampling step using ~zt and the conditional embedding ct at the timestep t. At the end of each timestep, we update.
+
+Finally, we can reconstruct the input image by using the noise latent ~zT=z∗T and the optimized conditional embeddings {ct}Tt=1. In the next subsection, we will introduce the approach to editing images with the target text prompt and the conditional embeddings.
+
+3.4 Prompt tuning for editing.
+
+Since the sequence of the conditional embeddings {ct}Tt=1 is optimized to fully reconstruct the input image, we believe that these optimized conditional embeddings have contained the most information of the original image, and thus ensure high fidelity. To achieve the desired modification, these optimized embeddings are adopted to perform the editing by advancing in the direction of the target text embedding c∗=tau theta (P∗)
+to ensure good editability also. More formally, in the second stage, we simply interpolate between the target embedding c∗ and the optimized ct linearly at each timestamp. For a given hyper-parameter eta in (0,1], we obtain.
+
+where the first term ensures the effective editability corresponding to the semantic contents in the target text, while the second term guarantees a good reconstruction of the original image. The algorithm is presented in Lines 14-21 in Algorithm 1. Note that when eta =0 or eta =1, the output of our editing method is the reconstructed original image, or the output of the baseline DDIM-Edit, respectively.
+
+Intuitively, our editing method is to find an intermediate representation between the original image and the output of DDIM-Edit. For a desired modification, the intermediate representation is supposed to contain both the structural information of the source image and the semantic contents of the target text prompt. Equation 9 is only one way to achieve this, which we refer to as condition interpolation. We also test a different interpolation method (referred to as latent interpolation), where we linearly interpolate between the noisy latent zt and z∗t at each timestamp:
+
+where z∗t is the noisy latent calculated by DDIM inversion via Equation 6, and zt is the latent obtained in the vanilla DDIM sampling process conditioned on the target embedding. Although this approach is more simple since the process of prompt tuning is no longer needed, we observe that this interpolation method may lead to cluttered images. This is because the interpolation of latent embeddings mixes the source object and the edited object spatially, rather than semantically (as condition interpolation does), leading to cluttered contents in images.
+
+Input: An input image I and a target prompt embedding c∗=tau theta (P∗)
+
+Output: Edited image I∗.
+
+1 // DDIM Inversion.
+
+2 Set guidance scale omega =0,z∗0=ENC(I);
+
+3 Compute the intermediate trajectory {z∗t}Tt=0 using DDIM inversion over I without conditional guidance via Equation 6;
+
+4 // Prompt Tuning.
+
+5 Set guidance scale omega &gt;1, eta in (0,1];
+
+6 Initialize ~zT←z∗T, cT←c∗;
+
+7 fort = T, T-1, …, 1do.
+
+8 forj = 0, …, N-1do.
+
+9 ct←ct−beta ∇c||z∗t−1−zt−1(~zt,t,ct)||22;
+
+10.
+
+11end for.
+
+12~zt−1←zt−1(~zt,t,ct), ct−1←ct.
+
+13 end for.
+
+14// Editing.
+
+15 Set zedtT←z∗T;
+
+16 fort = T, T-1, …, 1do.
+
+17 ct=(1−eta )⋅ct+eta ⋅c∗;
+
+18 zedtt−1=zt−1(zedtt,t,ct);
+
+19.
+
+20 end for.
+
+21I∗=DEC(zedt0);
+
+return I∗
+
+Algorithm 1 Prompt Tuning Inversion for Editing.
+
+3.5 Discussion.
+
+Our proposed image editing method shares similar motivations with existing works , all of which aim to modify an image in a text-driven and mask-free manner. However, our approach differs from them significantly in the following aspects:
+
+1) Imagic  and UniTune finetune the diffusion models for hundreds of steps to maintain high fidelity to the input image. In contrast, we only need to optimize the conditional embedding, which greatly reduces computational budgets.
+
+2) Our proposed Prompt Tuning Inversion is inspired by the Null-Text Inversion method . However, Null-Text Inversion chooses to optimize the unconditional embedding while we optimize the conditional one. Moreover, the editing process of Null-Text Inversion is achieved by the cross-attention map control in Prompt-to-Prompt , which requires an additional description of the input image. Compared to theirs, our method only needs the target text prompt and is thus more user-friendly.
+
+4. Experiments.
+
+4.1 Setup.
+
+Implementation details. In our experiments, we adopt the text-conditional Latent Diffusion Model  (known as Stable Diffusion) with 890M parameters trained on LAION-5B at 512×512 resolution. For the DDIM schedule, we adopt 50 steps and retain the original hyper-parameter choices of Stable Diffusion. The encoding ratio parameter is set to 0.8. The number of iterations to optimize c per diffusion step is set to N=1. The hyper-parameters beta and eta in Algorithm 1 are set to 0.1 and 0.9, respectively, unless specified. These allow editing an image in ∼1 minute on a single Tesla V100 GPU. For better performance, we adopt attention maps to localize the edited regions (referred to as local blending), and re-weight the attention maps as in .
+
+Evaluation and datasets. In semantic image editing, the visual content of the edited image is supposed to align well with the target text prompt (editability) while staying close to the input image in terms of the unedited parts (fidelity). For a given method, better editability usually comes at the cost of decreased fidelity to the input image, and vice versa. This forms a trade-off curve between the two objectives. Following DiffEdit , we evaluate different editing methods by comparing their trade-off curves on ImageNet . Specifically, given an image of one class from ImageNet, we aim to edit it to another class of ImageNet as instructed by the target text prompt. The editability and fidelity are measured using the LPIPS perceptual distance  and CSFID, which is a class-conditional FID metric , respectively. The former measures the distance with the input image while the latter measures both image realism and consistency w.r.t. the target class. For both metrics, lower values indicate better editing performance.
+
+4.2 Comparison with other methods on ImageNet.
+
+We compare our method with DiffEdit and our baseline DDIM-Edit, since they both share the same DDIM forward process and a similar sampling process. Besides, they load the same publicly available pre-trained weights for a fair comparison. To leverage the generalization capability of large-scale language-image models, we adopt the text-conditional Stable Diffusion model “sd-v1-4” instead of the class-conditional model trained on ImageNet as the pre-trained model.
+
+As pointed out by DiffEdit , different editing methods often have hyper-parameters which control editability, for example, the mask threshold or the encoding ratio. Lower mask threshold or higher encoding ratio leads to stronger editing. In our proposed method, we can also control the editing strength by varying the conditional interpolation ratio eta introduced in Equation 9. In our evaluation, we fix the DDIM encoding ratio, and draw the trade-off curve by varying the mask threshold for all methods ([1] As there was no official implementation of DiffEdit available at the time of writing, we adopted the unofficial implementation for inferring editing masks from https://github.com/LuChengTHU/dpm-solver.). The results are presented in Figure 4, where “DDIM-Global” denotes that the images are edited via “DDIM-Edit” but without using any masks, that is, the editing is performed globally. This can be regarded as a lower bound of fidelity for all methods. As the mask threshold increases, LPIPS decreases since fewer parts of the image are edited. Compared to DiffEdit, our baseline method DDIM-Edit achieves a better trade-off. Note that the only difference between the two methods is the approach to generating masks. The comparison shows that inferring editing masks using cross-attention maps, as adopted by DDIM-Edit, is more appropriate. Based on DDIM-Edit, our method can further improve the fidelity to the input images while maintaining editability. The best CSFID-LPIPS trade-off of our method demonstrates its superiority over DiffEdit and the baseline.
+
+We also present qualitative examples of these methods. As shown in Figure 5, without automatically generated masks, “DDIM-G” tends to modify images globally. For simple cases (for example, example (d)), image editing methods with the original DDIM inversion works well. However, for complex cases, we observe undesired and unreasonable edits to the objects. In contrast, with the help of the learnable conditional embedding, our method achieves realistic editing while successfully preserving the original details.
+
+4.3 Ablation study.
+
+Comparison to existing inversion methods.
+We randomly select 128 images and their corresponding captions from the COCO validation set . We then apply the following reconstruction methods to each image-caption pair: (1) AE denotes the variational auto-encoder with a slight KL-penalty used in Stable Diffusion. An image is first encoded by the encoder of AE. Afterwards, the decoder directly reconstructs the image from the latent. Therefore, we consider AE as an upper bound of reconstruction quality. (2) DDIM denotes the DDIM inversion method, which is a baseline inversion method. As analyzed in Section 3.2, it usually outputs a low-quality reconstruction result under a large classifier-free guidance scale omega. (3) NTI denotes the Null-Text Inversion method , which is our main point of comparison. Different from our method, it optimizes the unconditional embedding. (4) PTI denotes our proposed Prompt Tuning Inversion method. We introduce a learnable conditional embedding and the optimizing details are presented in Algorithm 1. The experimental results are provided in Table 2. For the diffusion-based inversion methods, we apply the diffusion model in an unconditional manner (that is, the classifier guidance scale omega =0) for the DDIM forward process. For the sampling process, we set omega =7.5. As shown in Table 2, DDIM inversion fails to reconstruct the original images since omega in the sampling process is different from that in the forward process, leading to a low PSNR score (13.64). For NTI and PTI, we set the number of iterations N to 5 and the learning rate beta to 0.01. We observe that both methods can reconstruct the images but the reconstruction quality of our method is better (25.71 vs. 24.45). To further demonstrate the effectiveness of our method, we vary N from 1 to 5 and increase the learning rate beta from 0.01 to 0.1. The experimental results in Table 3 shows that the reconstruction quality of PTI is always better than NTI under all settings, demonstrating that our method converges faster.
+
+Influence of other hyper-parameters.
+We also perform ablation on two core components of our method, that is, the interpolation ratio eta and the learning rate beta in PTI, to measure their influence in terms of CSFID-LPIPS on ImageNet. When eta =1 or beta =0, our method reverts to the baseline method DDIM-Edit. The left panel of Figure 6 shows decreasing eta from 1.0 to 0.9 leads to a better CSFID-LPIPS trade-off but lower ratios result in a worse balance between editability and fidelity. When we fix eta as 0.9 and decrease lr from 0.1 to 0.05 or 0.01, the trade-off also becomes worse.
+
+5. Conclusion and future work.
+
+We propose an intuitive and user-friendly text-based image editing method, which benefits from the superior generation and generalization capacities of large-scale image language diffusion models (for example, Stable Diffusion). The key idea of our method is that important structural information of the input image can be encoded into conditional embeddings, which can guide the diffusion model to reconstruct the original image via the sampling process. Based on this, our method consists of two stages. In the first reconstruction stage, we propose a novel Prompt Tuning Inversion method which encodes image information to learnable conditional embeddings quickly and accurately. In the second editing stage, we introduce an interpolation which linearly combines the target text embedding with the optimized embedding obtained in the first stage. In this way, the new conditional embedding contains both information from the input image and the target text prompt, resulting in an edited image with an appropriate trade-off between editability and fidelity. Quantitative and qualitative experimental results show that our approach achieves superior editing performance of images over previous methods.
+
+While our method works well in most scenarios, it still faces some limitations. As shown in Figure 7, there are multiple objects in the input images. However, neither DiffEdit nor our method changes all “gooses” to “black storks”. This limitation can possibly be mitigated by operating the attention maps more precisely  or adding different modes of conditional control , providing a research direction for image editing. We leave these options for future work.
