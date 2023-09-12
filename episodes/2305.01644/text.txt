@@ -1,0 +1,236 @@
+Key-Locked Rank One Editing for Text-to-Image Personalization.
+
+Abstract.
+
+Text-to-image models (T2I) offer a new level of flexibility by allowing users to guide the creative process through natural language. However, personalizing these models to align with user-provided visual concepts remains a challenging problem. The task of T2I personalization poses multiple hard challenges, such as maintaining high visual fidelity while allowing creative control, combining multiple personalized concepts in a single image, and keeping a small model size.
+
+We present Perfusion, a T2I personalization method that addresses these challenges using dynamic rank-1 updates to the underlying T2I model.
+Perfusion avoids overfitting by introducing a new mechanism that “locks” new concepts’ cross-attention Keys to their superordinate category. Additionally, we develop a gated rank-1 approach that enables us to control the influence of a learned concept during inference time and to combine multiple concepts. This allows runtime-efficient balancing of visual-fidelity and textual-alignment with a single 100KB trained model, which is five orders of magnitude smaller than the current state of the art. Moreover, it can span different operating points across the Pareto front without additional training.
+
+Finally, we show that Perfusion outperforms strong baselines in both qualitative and quantitative terms. Importantly, key-locking leads to novel results compared to traditional approaches, allowing to portray personalized object interactions in unprecedented ways, even in one-shot settings.
+
+Code will be available at our project page ([1] Accepted to SIGGRAPH 2023).
+
+1. Introduction.
+
+Text-to-image (T2I) personalization is the task of customizing a diffusion-based T2I model to reason over novel, user-provided visual concepts . A user first provides a handful of image examples of the concept; then, they can then use free text to craft novel scenes containing these concepts. This workflow can be used in a wide range of downstream applications from virtual photo shoots through product design to generation of personalized virtual assets.
+
+Current methods for personalization take one of two main approaches. They either represent a concept through a word embedding at the input of the text encoder or fine-tune the full weights of the diffusion-based denoiser module. Unfortunately, these approaches are prone to different types of overfitting. As we show below, word embedding methods struggle to generalize to unseen text prompts. This is reflected in their textual-alignment scores which tend to be low. Fine-tuning methods can better generalize to new text prompts, but they still lack expressivity, as reflected in their textual and visual alignment scores which tend to be lower than our method. Moreover, tuning methods typically demand significant storage space, often in the range of hundreds of megabytes or even gigabytes. Lastly, both approaches struggle to combine concepts that were trained individually, such as a teddy* and a teapot* (Figure 1), in a single prompt.
+
+Here we describe “Perfusion” a T2I personalization method aimed at answering all these challenges. It allows for expressive deformations of the concept while maintaining high concept-fidelity. It further enables inference-time combinations of concepts, and it has a small model size — roughly 100KB per concept. To achieve these goals, we focus on the cross-attention module of diffusion-based T2I models.
+
+In typical diffusion-based T2I, an input text prompt is transformed into a sequence of encodings using a text encoder such as T5  or CLIP . These encodings are then mapped to Keys and Values using learned projection matrices as part of the cross-attention module. Inspired by , we propose to view the effects of these projections as two different pathways: The Keys (K) are a “Where” pathway, which controls the layout of the attention maps, and through them the compositional structure of the generated image. The Values (V) are a “What” pathway, which controls the visual appearance of the image components.
+
+Our main insight is that existing techniques fail when they overfit the Where pathway (Figures 2, 11), causing the attention on the novel words to leak beyond the visual scope of the concept itself. To address this shortcoming, we propose a novel “Key-Locking” mechanism, where the keys of a concept are fixated on the keys of the concept’s super-category. For example, the keys that represent a specific teddybear may be key-locked to the super-category of a teddy instead. Intuitively, this allows the new concept to inherit the super-category’s qualities and creative power (Figure 1). Personalization is then handled through the What (V) pathway, where we treat the Value projections as an extended latent-space and concurrently optimize them along with the input word embedding.
+
+Finally, we describe how these components can be incorporated directly into the T2I model through the use of a gated rank-1 update to the weights of the K and V projection matrices. The gated aspect of this update allows us to combine multiple concepts at inference time by selectively applying the rank-1 update to only the necessary encodings. Moreover, the same gating mechanism provides a means for regulating the strength of learned concept, as expressed in the output images. This allows runtime efficient, inference-time trade-off of visual-fidelity with textual-alignment, without requiring specialized models for every new operating point. Empirically, Perfusion not only leads to more accurate personalization at a fraction of the model size, but it also enables the use of more complex prompts and the combination of individually-learned concepts at inference time.
+
+In summary, our contributions are as follows: First, we investigate the overfitting observed in current personalization methods and propose a “Key-Locking” mechanism that mitigates it. Second, we propose a controllable rank-1 update mechanism for the network that achieves high object fidelity with only a 100KB footprint. Third, our approach efficiently spans the Pareto front of a single trained model to balance visual-fidelity and textual-alignment during runtime, while also being able to generalize to unseen operating points. Finally, we demonstrate that Perfusion can outperform the state-of-the-art and enable object compositions at inference time.
+
+2. Related work.
+
+Diffusion based text-guided synthesis.
+Recent advances in T2I generation have been led by pre-trained diffusion models  and particularly by large models  trained on web-scale data . Our approach extends these pre-trained models to portray personalized concepts. It is applied with Stable-Diffusion , but we expect that it can be applied to any T2I generator that uses a similar cross-attention mechanism .
+
+T2I Personalization The task of T2I personalization  aims to teach a generative T2I model to synthesize new images of a specific target concept, guided by free language. Current personalization methods either fine-tune the denoising network around a fixed embedding  or optimize a set of word embeddings to depict the concept . is a concurrent work that fine-tunes the K and V cross-attention layers of the denoising network, along with a word embedding. It uses a closed-form optimization technique to combine concepts. In Perfusion, we lock the K pathway to the concept’s supercategory and use gated rank-1 editing instead of fine-tuning and subsequent optimization. This yields novel quality of results. We focused on K and V pathways independently of.
+
+Rank-1 Model editing In the field of natural language processing, significant effort was given to understanding and localizing the memory mechanisms of large language models. Specifically, it has been observed that the transformer feed-forward layers serve as key-value memory storage . Recently, introduced ROME, a rank-1 editing approach that updates these associative memory layers in order to modify the network’s factual knowledge.
+Perfusion seeks to apply similar ideas to T2I diffusion models. However, naïve rank-1 editing of diffusion models can lead to poor results, as also reported by . Our approach addresses the challenges of applying these methods to diffusion-based cross-attention layers. Moreover, Perfusion can combine multiple rank-1 edits using a dynamic gating mechanism rather than a static edit.
+
+Text-based image-editing. The advent of powerful multi-modal models has brought with it an array of text-based editing methods . With diffusion models, these range from single-image editing approaches  to inpainting tasks . Most relevant to our work are the paint-with-words (PWW) approach introduced by , and prompt-to-prompt (P2P) . PWW biases the attention map toward a predefined mask during inference time. P2P edits a given generated image, by regenerating it with a new prompt while injecting the attention maps of the original image along the diffusion process. In contrast to these methods, we do not edit given images but learn to represent a personalized concept that can be invoked in new prompts. Additionally, we do not override the attention map, but constrain the cross-attention Keys of the new concept. These are a contributing factor to the attention map, but they still allow for concept-specific modifications through the Query features.
+
+3. Preliminaries and Notations.
+
+We begin with an overview of two mechanisms that our work leverages for personalization. The first is the cross-attention mechanism typically found in T2I diffusion models. The second is a recent approach for rank-1 editing of large language models.
+
+3.1. Cross-Attention in Text-to-Image models.
+
+In current T2I systems based on diffusion models (Figure 3.A), an input text prompt is first converted into a sequence of word-embeddings. This sequence is then transformed into a sequence of encodings using a text encoder, such as CLIP. Each encoding is then linearly projected through two cross-attention matrices: WK and WV. The results of these projections are known as “Keys” and “Values”. Formally, let M be the length of the input sequence, w in RM×dw be a sequence of word-embeddings, each with dimension dw, and e in RM×de be a sequence of encodings, each with dimension de. For each entry m in M in the sequence, the encoding em in Rde is mapped by the two projection matrices into a “Key” vector Km=WKem in Rdk and a “Value” vector Vm=WVem. Concurrently, local image features are projected through a third matrix, WQ, generating a spatial map of “Queries”. These are in turn projected onto the keys, yielding a per-encoding attention map: Am=softmax(QKTm/√dk). Intuitively, this map informs the model about the relevance of the mth word to each spatial region of the image. Finally, local image features are comprised by the “Values”, weighted by these maps: A⋅V (Figure 3).
+
+3.2. Rank-1 Model Editing.
+
+Rank-one Model Editing (ROME) is a recently introduced method for editing factual association in a pre-trained language model, such as GPT. ROME edits the weights of a single linear layer W in the network, so that given one target-input i∗, the layer will emit one target-output o∗ ([2] Intuitively, the target-input plays a role of a key that is to be matched. To avoid confusion with transformers’ K and V pathways, we use “target-input” and “target-output” instead of “key” and “value” from.). To edit the model’s factual knowledge, ROME employs three steps, performed separately. (1) Find the target-input i∗ associated with the edited word (fact) in layer W.
+ROME determines the target-input activations of the edited word in different prompts by passing them through the language model and averaging the activations at the word’s index. This gives the representation i∗. (2) Find the target-output o∗, by optimizing the output activation of the layer for a specific goal — for example to modify the facts presented by the model’s final output. o∗ is optimized over the output of a single word index.(3) Update the layer W by solving a constrained least-squares problem, which has a closed-form solution.
+
+Here, Lambda =(o∗−Wi∗)/[(iT∗(C−1)Ti∗)], C is a constant positive definite matrix, that is pre-cached (Appendix C). The update in step 3 is performed after finding o∗, thus affecting all sequence encodings, instead of just the single edited word as in step 2. By limiting the update to a local, rank-1 change, ROME changes the information associated with a single fact without drastically altering the knowledge of the model. Our method leverages a similar mechanism to edit a text-to-image model and introduce new visual concepts.
+
+4. Method.
+
+We aim to personalize a model in an expressive and efficient manner. A natural place to start then is by investigating the limitations of prior work in the field, and particularly Textual Inversionsand DreamBooth. We notice that these methods, and Textual Inversion in particular, are susceptible to overfitting, where a learned concept becomes difficult to modify by changing the prompt that contains it. In Figure 2 we demonstrate that this issue originates in the attention mechanism, as the new concept draws attention beyond its visual scope. Additional examples showing this phenomenon are provided in Figure A.3. Next, we describe Perfusion, an approach to overcome the problem through rank-1 layer editing. We outline a gating mechanism that provides better control at inference time and describe how to leverage it to compose concepts that were learned in isolation.
+
+4.1. Two conflicting goals and one Naïve Solution.
+
+Personalized T2I aims to achieve two goals: (1) Avoid overfitting to the example images, so the personalized concept can be generated in various poses, appearances, or context; and (2) Preserve the identity of the personalized concept in the generated image, despite being portrayed in a different pose appearance or context. There is a natural trade-off between these two goals. Methods that overfit the input examples tend to preserve identity, but then fail to match creative prompts that aim to place the concept in different contexts.
+
+The Where Pathway and the What Pathway. To improve both of these goals simultaneously, our key insight is that models need to disentangle what is generated from where it is generated. To this end, we leverage the interpretation of the cross-attention mechanism described in section 3.1. The K pathway — the one associated with the “Keys”, is related to creating the attention map. It thus serves as a pathway for controlling where objects are located in the final image. In contrast, the V pathway is responsible for the features added to each region. In this sense, it can control what appears in the final image. We therefore interpret K mappings as a “Where” pathway and V mappings as a “What” pathway, and this interpretation guides our proposed method:
+
+4.1.1. Avoid overfitting.
+
+In preliminary experimentation, we noticed that when learning personalized concepts from a limited number of examples, the model weights of the Where pathway (WK) are prone to overfit to the image layout seen in these examples. Figure 2 illustrates this problem showing that the personalized examples may ‘dominate’ the entire attention map, and prevent other words from affecting the synthesized image. We thus aim to prevent this attention-based overfitting by restricting the Where pathway.
+
+4.1.2. Preserving Identity.
+
+In Image2StyleGAN, proposed a hierarchical latent-representation to capture identities more effectively. There, instead of predicting a single latent code at the generator’s input space, they predicted a different code for each resolution in the synthesis process. We propose the What (V) pathway activations as a similar latent space, given their compact nature and the multi-resolution structure of the underlying U-Net denoiser.
+
+4.1.3. A Naïve Solution.
+
+To meet both goals, consider this simple solution: Whenever the encoding contains the target concept, ensure that its cross-attention keys match those of its supercategory, which we call Key Locking. Additionally, we want the cross-attention values to represent the concept in the multi-resolution latent space. For example, as illustrated in Figure 3 (right-top), given image examples of our teddy bear named Hugsy, when the encoding includes “Hugsy” the V projection emits a concept-specific code, while the K projection is targeted to emit keys for the super category Kteddy.
+
+One way to implement this idea would be a simple vector replacement - simply swapping out the keys and values assigned to the encoding at the personalized concept’s index. However, this fails to account for the cross-word information sharing in the text encoder. By the time the encoding reaches the denoiser’s cross-attention layers, its features are already influenced by the features of other words in the text, and in turn, influence them as well. We want to ensure that our implementation accounts for this influence, and correctly modifies the Key and Value activations for any such influenced words.
+
+A natural solution is then to edit the weights of the cross-attention layers, WV and WK using ROME. Specifically, when given a target-input iHugsy we enforce the K activation to emit a specific target-output oKHugsy=Kteddy. Similarly, given a target-input iHugsy, we enforce the V activation to emit a learned output oVHugsy=VHugsy see Figure 3 (right-bottom). Now, for any word, if its encoding contains a component parallel (aligned) to i∗, then their activation outputs will also be modified accordingly.
+
+Unfortunately, applying ROME to this task faces two challenges:
+Challenge 1: Training with ROME leads to a mismatch between training and inference. This is because during training in “step 2”, ROME optimizes only the target-output o∗ associated with one specific entry in the prompt (mth-index). However, as noted above, when performing the rank-1 matrix update in “step 3” the change is expected to affect the projections of other words in the prompt. Indeed, we have observed that this results in a train-test mismatch that substantially degrades the fidelity of the reconstructed concept.
+Challenge 2: A similar effect also prevents us from combining more than one learned concept, as their effects on the projections are not well-disentangled. Moreover, these new concepts are associated with multiple target-inputs i∗, which may themselves be inherently entangled (for example if the concepts share related semantics). Together, these lead to the creation of visual artifacts when attempting to combine concepts at inference-time.
+
+To address these challenges we propose to align the training and inference steps of ROME, and introduce a new gating mechanism. Both components are described below.
+
+4.2. Gated Rank-1 Model Editing for Personalized T2I.
+
+Training end-to-end to address train-test mismatch. To address the first challenge, ROME’s mismatch between training and inference, we propose to unify the second and third steps of ROME. As such, the target-output optimization and matrix update occur together during training. The network learns to account for any effects on other prompt-parts, avoiding the train-inference mismatch.
+
+To do so, we rewrite the weight update of ROME, to characterize the output h of layer ^W when presented with an input em. This yields.
+
+Here, sim(i∗,em):=iT∗(C−1)Tem measures the similarity of em with i∗ in a metric space defined by C−1 , ||i∗||2C−1:=sim(i∗,i∗) measures the energy of i∗ in the same metric space, and e⊥m:=em−i∗sim(i∗,em)/||i∗||2C−1 is the component of em that is orthogonal to i∗ in the metric space. Intuitively, the right additive term in Equation (2) maps the i∗ component of the word encoding (em) to o∗. The left term nulls the i∗ component from the word encoding and maps the remaining using the pretrained matrix W. We provide more details in Appendix A and B.1. Given this characterization, we replace the forward pass of each layer by updating it using Equation (2) as the layer’s forward pass. This ensures that the same update expression is used for both training and inference, eliminating the mismatch. Combined with an online estimation of i∗ (Section 4.4), it enables end-to-end training with ROME, rather than individually applying its 3 steps.
+
+Using gated rank-1 update for combining concepts.
+Combining individually learned concepts at inference time is a hard challenge. In initial experiments, we tested adding concepts one by one, by editing W using ^W=W+∑j=1..JLambda j(C−1ij∗)T as a variation of equation Equation (1). We found this approach introduced visual artifacts, even when the prompt only included a single learned concept. We hypothesize that this problem arises because the different i∗s of individually learned concepts may interfere with each other. For example, they may have related representations if the concepts share semantics. Ideally, a concept update occur only when input encoding has sufficient energy regarding the concept, and attenuated otherwise. By doing so, we can ensure that the model update is only applied to the relevant concept, and not to others.
+
+To address this challenge, we use a gating mechanism to selectively allow or attenuate the influence of each concept on the layer output. Here, we note that the update rule of Equation (2) already includes a linear gating mechanism sim(em,i∗)/||i∗||2C−1, which is close to 1 when em=i∗. However, lower similarity values may not be sufficiently attenuated. We therefore propose to increase the influence of sim by wraping the sim(em,i∗)/||i∗||2C−1 value with a sigmoid function, which has hyper-parameters for bias and temperature. This way, the weight updates are sharply concentrated on inputs that strongly correspond to the personalized concept.
+
+Therefore, the forward pass of each layer update during both training and inference time of a single concept, is.
+
+where, sigma is a sigmoid activation function, tau is the temperature and beta a bias term. This implementation ensures that weight updates are only applied to encoding components that align (parallel) with i∗, that is those belonging to the new concept, or influenced by it.
+
+This non-linear gating mechanism therefore provides two important benefits: First, it allows us to better separate the influence of individually learned concepts during inference time. Second, even for a single concept, it allows for inference-time control over the influence of the concept. By adjusting the values of the sigmoid hyper-parameters, the bias and the temperature, we can trade visual fidelity with textual alignment and vice-versa.
+
+In the next section we expand on how to generalize this formulation to combine multiple concepts.
+
+4.3. Inference.
+
+Single concept:
+For inference with a single trained concept, we simply apply Equation (3) to the forward pass of each edited cross-attention layer. We can control the strength of the depicted concept by changing the values of the sigmoid’s tau and beta at inference time.
+
+Combining multiple concepts:
+To combine concepts that were trained in isolation, we extend equation Equation (3) to include multiple concepts {ij∗,oj∗}j in 1..J. For that, we first generalize e⊥m to be orthogonal to the sub-space spanned by all the {ij∗}j=1..J in the metric space, which we denote as e⊥Jm. For the right term we simply sum the gated responses from all the concepts. The final expression is:
+
+where e⊥Jm=em−∑j in 1..Jujsim(uj,em), and uj relates to a basis vector in the metric space, after being projected back to the text encoder space by an inverse Cholesky root LT−1. The derivation of e⊥Jm is provided in Appendix B.
+
+4.3.1. Global Key-Locking:
+
+Key-Locking ensures that a concept’s Key is correctly aligned with its superconcept. However, it does not ensure that the text-encoder handles the concept in the same way it would have handled the superconcept and its correlations to the other words in the encoding. We also investigate an inference time method to align Key-locked concepts to an entire prompt. We refer to this variant as global key-locking, and to our vanilla mechanism as local key locking. We describe the details in Appendix C.
+
+4.4. Implementation details.
+
+Online estimation of i∗:
+We use the following exponential moving average expression to estimate i∗ during training time: i∗:=0.99i∗+0.01econcept where econcept corresponds to encoding of the concept word at the output of the text encoder.
+
+Pseudo Code: Appendix D provides pseudo code for the rank-1 editing module of Perfusion.
+
+Zero-Shot Weighting Loss:
+Training with few image examples is prone to learning spurious correlations from the image background. To decorrelate the concept from its background we weigh the standard conditional diffusion loss by a soft segmentation mask attained from a zero-shot image segmentation model. Mask values are normalized by their maximum value.
+
+Applying Perfusion to multiple layers: Similar to , for each concept we choose a single word for a supercategory name. We use that word to initialize its word embeddings and treat the embeddings as learned parameters. We apply Perfusion editing to all cross-attention layers of the UNet denoiser. For each of the K pathway layers (l), we precompute and freeze the oK:l∗ to be oK:l∗=WlKesuperclass with a prompt saying “A photo of a ¡superclassword¿”, and we update i∗ as training progresses. On each of the V pathway layers, we treat oV:l∗ as learned parameters.
+
+Training details: We train o∗ with a learning rate of 0.03, for the embedding we set a learning rate of 0.006. We use a batch size of 16 using Flash-Attention. We only use flip augmentations p=50%. We do not flip asymmetric objects. We use a validation set of 8 prompts, sampled every 25 training steps, and select the step with the model that maximizes the harmonic mean between a CLIP image similarity score, and a CLIP text similarity score. We describe the CLIP metrics in more detail in the experimental details. To condition the generation, we randomly sample neutral context texts, derived from the CLIP ImageNet templates . The list of templates is provided in the supplementary materials.
+
+Our approach is trained on a single A100 GPU for an average of 210 steps, taking ∼4 minutes, and a maximum of 400 steps (∼7 minutes). This training requires ×2−×3 less compute compared to concurrent work and utilizes 27GB of RAM.
+
+Sigmoid hyper-parameters:
+At training time, we set the sigmoid bias and temperature to b=0.75,T=0.1. At inference time we typically use a temperature of 0.15 and bias of 0.6−0.75 for local key lock, or 0.4−0.6 for global key lock.
+
+5. Experiments.
+
+We demonstrate that Perfusion outperforms strong baselines. We conduct both a qualitative comparison and a quantitative evaluation, demonstrating that it spans the visual-fidelity and text-alignment Pareto front and achieves higher fidelity results with more complex prompts, despite using only a fraction of the parameters. Then, we study the properties of Perfusion through an ablation study (Section 5.3).
+
+Compared Methods: (1) Perfusion: Our method as described in Section 4. We use a single trained model for each concept, but we show results spanning different sigmoid biases and with local and global locking. These parameter adjustments are all applied during runtime. (2) Perfusion Best H: For each class, we automatically choose the run-time variant with the best harmonic mean over text and visual similarities (see metrics).
+(3) DreamBooth : A SoTA approach that fine-tunes all parameters of the denoiser’s U-Net. We use the implementation of. (4) Textual-Inversion (TI) : A SoTA approach that only optimizes word embeddings. We use the Stable Diffusion implementation from the official repository, with the parameters the authors report for LDM .
+(5) Custom-Diffusion (CD): A concurrent work that trains the K and V cross-attention pathways, and also the word-embedding. We use the official implementation and hyperparameters. (6) Custom-Diffusion Better-HP: CD trained with 200 steps, which we found to improve the text similarity score. (7) SuperCategory: A text only baseline; We replace the concept word with its super class. All methods were applied to a pre-trained Stable Diffusion checkpoint v1.5. Dataset:
+Concepts: For fair and unbiased evaluation we used concepts from previous papers: 6 concepts from CD, 2 from TI, and 3 from or similar to DB, for a total of 11 personalization concepts. These are from four groups: 4 toys/figurines and 3 pets (grouped as “animated”), 2 containers, 1 furniture, and 1 wearable accessory.
+Prompts: We use two types of prompts. First, 19 prompts that were shared across all concepts. These only change the scene, but do not deform the concept. We name them “shape-preserving” prompts. Second, per-group prompts. These are more specific to the group the concept belongs, and often induce a deformation to the concept appearance, like “A broken pot*”, or “A cat* is acting in a play wearing a costume”. In total, we have 86 unique prompts, with an average of 43 prompts per class. Out of the 86 unique prompts, 42 were randomly selected from those used by Custom-Diffusion.
+
+Evaluation Metrics:
+Like TI, we report the results on a 2D plane to illustrate the balance between visual and text similarity. But unlike TI, which only uses prompts like ”a photo of a S∗” to evaluate image similarity, we use all shape-preserving prompts to also measure concept fidelity in new scenes..
+
+We compute the following evaluation metrics: (1) Image similarity is the average pairwise CLIP cosine-similarity between the concept images and the generated images from the shape-preserving prompts. (2) Text Similarity is the average CLIP similarity between all generated images and their textual prompts, where we omit the placeholder S∗ (that is ”A is dressed like a wizard”). To calibrate between different prompts, we normalize text scores by comparing them to scores of images generated with a supercategory word instead of the learned word. All similarity scores are balanced “per-class”. Namely, we compute the mean score per concept class, and then average all class scores. For each concept, we sample 8 images per prompt, by 50 DDIM steps and a guidance scale of 6. 5.1. Results.
+
+In Figure 6, we illustrate the results on a plane that shows the trade-off between visual and textual similarity.
+Dreambooth successfully balances compromise both visual and textual fidelity. However, it obtains lower scores on both metrics when compared to Perfusion and CD. Textual-Inversion struggles to generalize to new prompts, showing low textual-similarity score. Custom-Diffusion tends to favor visual similarity, even at the cost of overfitting to the target. We observe that with a small hyper-parameter change, Custom-Diffusion Better-HP, can instead be balanced toward textual similarity.
+Perfusion outperform these baselines and pushes forward the pareto front. Notably, we can span this front using inference-time parameter modifications, which allows a user to control this trade-off based on their desired qualities. In practice, this allows us to easily select the best operating point for each class, leading even greater performance (Perfusion Best H). Note that Perfusion achieves these gains while requiring only 100KB of per-concept parameters, compared to several GBs in DB and nearly 100MB in CD.
+Importantly, the comparison reveals that Key-Locking significantly improves textual similarity without significant harm to the visual similarity.
+
+5.2. User Study.
+
+We further evaluate the models through two user studies conducted with Amazon Mechanical Turk. In the first study, raters were given two images of a concept and a prompt. They were asked to rank images generated by the three methods (Perfusion, CD, DB), based on how well they portrayed the concept according to the prompt. We used 11 concepts, 24 prompts per concept, with 8 responses per prompt. Perfusion was selected first with an average rank of.
+2.18±0.02 (SEM), CD was 2nd (2.06±0.02) and DB was last (1.75±0.02), demonstrating a preference for our approach. For the second study, we investigated whether Perfusion harms the generative prior. To do so, we compared Perfusion to “vanilla” stable-diffusion (SD). Raters were shown a prompt and two generated images, one by Perfusion and another by SD. They were asked to rate the images according to their realism, using a score between 1 to 3 (best). We gathered the same number of concepts, prompts and responses as the first study. Perfusion had an average score of 1.885±0.017 (SEM), while SD had a score of 1.894±0.017. The results are statistically indistinguishable, demonstrating that Perfusion can preserve the generative prior. See Appendix I for additional details on these experiments.
+
+5.3. Ablation study.
+
+In Figure9 we study in greater depth the properties of Perfusion by an ablation study. We show the trade-off between visual and textual similarity for the following conditions.
+
+1. [label=()]
+
+
+2. 1-shot: We compare between training our method with all the training examples (average of 6.5 image for each concept), to training with just a single example for each concept. We observe that training with just a single example introduces slight overfitting.
+
+
+3. Key-locking: We compare between our method with key-locking to our method with trained key projection layers. It is evident that key-locking shifts the Pareto curve to the right - meaning less overfit. This result confirms our hypothesis that locking the key projection layers leads to better textual-alignment and enables complex deformations of the learned concept.
+
+
+4. Zero-Shot Masking Loss: We compare the effects of training with and without a zero-shot mask. We notice that using zero-shot mask tends to improve the textual similarity, which mean it helps reduce the overfitting.
+
+
+5. Sigmoid Train Bias: We compare between different values of the Sigmoid biases used during training time. We notice that using a higher bias results in better Pareto front.
+
+
+6. Sigmoid Inference Temperature We compare between different values of the Sigmoid temperature used during inference time. We notice that using inference-time Sigmoid temperature that is higher than the train-time Sigmoid temperature results a better pareto front. Generally temperature of 0.15 tends to work better.
+
+6. Qualitative visual comparisons.
+
+Next, we provide qualitative comparisons that reveals the strengths of our approach, along with examples of our main failure mode.
+
+Single Concept Text-guided Synthesis: Figures 1, 4 and 15 show our ability to compose novel scenes when using Perfusion and compare them with strong baselines. For each concept, we show exemplars from our training set, along with generated images and their conditioning texts. Our approach allows making deformations to the concept appearance without losing its identity. At the same time, it correctly encapsulates the semantic qualities of both the concept and the prompt. For example, notice how we can fully customize the teddy* concept in Figure1 and the cat* in Figure4 with different garments, without compromising their identities, and at the same time allow them to interact with the scene. We can also change the material of the teapot* to pure gold or transparent glass, while retaining its distinctiveness. In Figure 4 Perfusion is the only one that can shatter the pot* concept. Notice how it can change the dog* posture, making it appear as though it is engaged in reading a book, with its eyes focused on the text and its paws grasping the book. In Figure A.2 we provide additional results including Textual Inversion.
+
+Multi Concept Text-guided Synthesis: Figures 1 and 5 show our ability to compose novel scenes with multiple concepts, when using Perfusion and compare them with CD’s “optimization” approach to combine individual concepts. We use their provided images when comparing with prompts from their paper, otherwise with use “Better-HP”. Notice how Perfusion can compose the teddy* and teapot* in different scenes, or how it allows the teapot* to hold the teddy* while sailing. When comparing with CD, we observe similar or better results. For example, observe how the water-color painting better preserve the chair identity, or how the teddy* can wear the sunglasses* successfully.
+
+Balancing visual-fidelity and textual-alignment: Figure7 provides qualitative examples for balancing the visual-fidelity versus the textual-alignment, by adjusting the sigmoid bias threshold. Higher bias values reduce the impact of the concept, while lower values give it more prominence in the generated image. This is because the concept energy is spread across multiple encodings in the text encoder, not just the one corresponding to the concept word. Lowering the bias increases its influence on all relevant encodings.
+
+Next, we demonstrate several aspects of the key-locking mechanism. We start by comparing global key-locking local key-locking and no key-locking. Then, we show what happens when we lock concepts to different super-categories. Finally, we study the training dynamics of local key-locking and show an “over-generalization” phenomena that makes it over-align with the supercategory.
+
+6.1. Key Design Decisions.
+
+Next, we demonstrate and discuss key design decisions. We start by comparing global key-locking local key-locking and no key-locking. Then, we show what happens when using vanilla ROME, when there a train-inference mismatch, and the weight update is performed only after the optimization step.
+
+Comparing lock types:
+Figure 10 compares global key-locking, local key-locking and trained-K (no key-locking, K pathway is trained like the V pathway). We find that global locking allows to generate rich scenes, portray better the nuances of the object attributes or activities, and in general allow more visual variability of the concept, compared to local key locking and trained-K. For example notice the cat depicted in human-like postures while reading a book, or when wearing a chef outfit. Local locking also has some successes but they are weaker. Finally, trained-K is more aligned with the postures and appearance of the training images, while sacrificing alignment with the text.
+
+Train-inference mismatch, when using vanilla ROME:
+Figure A.1 illustrates the mismatch between generated images during training and inference when editing with vanilla ROME. This results in corrupted images during inference.
+
+6.2. Robustness Analysis.
+
+Next, we will show how our approach performs in different situations, highlighting both its strengths and weaknesses.
+
+One-shot learning:
+We compare training our method with all examples (average of 6.5 images/concept) to using only one example per concept. In Figures 8 and 9(a), we note a slight overfit when training with only one example.
+
+Zero-shot transfer to fine-tuned checkpoints:
+A Perfusion concept trained using a vanilla diffusion-model could generalize to fine-tuned variants of the model. Figure 12 shows transfer abilities to two popular variants of Stable-Diffusion: InkPunk-v2 and Protogen-v3.4. Uncurated samples: Figure 14 shows that a batch size of 8 is typically sufficient to ensure several good samples.
+
+Locking to unusual super-categories Figure13 shows how the concepts are portrayed when locked to unusual super-categories. We observe that the concepts “inherit” the qualitative outline of the unusual super-category. When the pot is locked to a shoe or a clock, it is portrayed in the outline of a shoe or clock, but in the style of the pot. When the cat is locked to a lamp, it becomes illuminated.
+
+The impact of Key-Locking on training dynamics:
+The left panel of Figure11 shows the comparison between Trained K and Local Key-Locked training for various training steps (“s”). As training progresses, Trained K (no-lock) overfits the training images, while hurting the textual alignment. Interestingly, Local Key-Locked training reveals an “over-generalization” phenomenon. As training progresses the concept learns supercategory (latent) features, improving textual alignment but sacrificing visual fidelity. The right panel of Figure11 displays qualitative examples, where longer training makes the concept “in outer space” increasingly toy-like. It is worth noting that reconstruction prompts have better visual fidelity as the concept is trained using such prompts. This suggests that the learned supercategory features are latent. These findings were expected, as the learned V features propagate to the Q features in the next denoising step and the Q features should align with the locked supercategory K features due to their inner product when calculating the attention map. Hence, we expected that the V features should learn to encode latent properties of the supercategory in order to improve Q-K alignment.
+Finally, the example of the cat-toy demonstrates a failure case where the V features pick up the supercategory features too early during training, before the concept has completed learning its fine-grained characteristics.
+
+7. Conclusions and Limitations.
+
+We have presented Perfusion, a novel T2I personalization method that combines high visual fidelity with improved textual alignment. Our approach, which utilizes a gated rank-1 method, provides control over the influence of learned concepts during inference time, enables combination of multiple concepts, and results in a small model size. Importantly, the key-locking technique leads to novel qualitative results compared to traditional approaches.
+
+Limitations and future work.
+We find that the choice of supercategory word to lock onto may sometime produce “over-generalization” effects when using the concept in a new prompt. For instance as shown in Figure11, setting the concept of a toy-cat as a “toy” may encourage learning to generate it in a childish style in new prompts, while scarifying its visual fidelity. Additionally, Figure13 demonstrates that locking concepts to atypical super-categories results in the concepts adopting some characteristics of that atypical super-category. A second limitation is that combining concepts requires a great deal of prompt engineering. Interestingly, we found it was easier to succeed on prompts that were suggested by CD, than with prompts that we devised. We believe that there is much of a headroom for improvement in this task.
+
+Acknowledgements.
+
+We are grateful to the anonymous reviewers of SIGGRAPH 2023 for their valuable feedback, which greatly improved the final version. Additionally, we would like to thank Assaf Hallak, Xun Huang, Jim Fan, and Eli Meirom for providing insightful feedback on an earlier draft of this manuscript.
