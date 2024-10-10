@@ -35,7 +35,7 @@
     <podcast:locked owner="sables-probe-0i@icloud.com">no</podcast:locked>
     <podcast:medium>podcast</podcast:medium>
     <item>
-        <title>1institutetext:</title>
+        <title>Concept Arithmetics for Circumventing Concept Inhibition in Diffusion Models.</title>
         <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2404.13706</guid>
         <description>
         <![CDATA[<p>Motivated by ethical and legal concerns, the scientific community is actively developing methods to limit the misuse of Text-to-Image diffusion models for reproducing copyrighted, violent, explicit, or personal information in the generated images. Simultaneously, researchers put these newly developed safety measures to the test by assuming the role of an adversary to find vulnerabilities and backdoors in them. We use compositional property of diffusion models, which allows to leverage multiple prompts in a single image generation. This property allows us to combine other concepts, that should not have been affected by the inhibition, to reconstruct the vector, responsible for target concept generation, even though the direct computation of this vector is no longer accessible. We provide theoretical and empirical evidence why the proposed attacks are possible and discuss the implications of these findings for safe model deployment. We argue that it is essential to consider all possible approaches to image generation with diffusion models that can be employed by an adversary. Our work opens up the discussion about the implications of concept arithmetics and compositional inference for safety mechanisms in diffusion models.</p>]]>
@@ -47,40 +47,6 @@
         <itunes:explicit>No</itunes:explicit>
         <itunes:episodeType>Full</itunes:episodeType>
         <itunes:episode>28</itunes:episode>
-        <itunes:keywords></itunes:keywords>
-        <itunes:season>1</itunes:season>
-        <podcast:episode>28</podcast:episode>
-    </item>
-    <item>
-        <title>1institutetext:</title>
-        <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2404.13706</guid>
-        <description>
-        <![CDATA[<p>Motivated by ethical and legal concerns, the scientific community is actively developing methods to limit the misuse of Text-to-Image diffusion models for reproducing copyrighted, violent, explicit, or personal information in the generated images. Simultaneously, researchers put these newly developed safety measures to the test by assuming the role of an adversary to find vulnerabilities and backdoors in them. We use compositional property of diffusion models, which allows to leverage multiple prompts in a single image generation. This property allows us to combine other concepts, that should not have been affected by the inhibition, to reconstruct the vector, responsible for target concept generation, even though the direct computation of this vector is no longer accessible. We provide theoretical and empirical evidence why the proposed attacks are possible and discuss the implications of these findings for safe model deployment. We argue that it is essential to consider all possible approaches to image generation with diffusion models that can be employed by an adversary. Our work opens up the discussion about the implications of concept arithmetics and compositional inference for safety mechanisms in diffusion models.</p>]]>
-        </description>
-        <pubDate>Thu, 10 Oct 2024 12:09:05 +0000</pubDate>
-        <enclosure
-        url="https://nerkewar.github.io/papers-read-aloud/episodes/2404.13706/audio.mp3" type="audio/mpeg" />
-        <itunes:author>nerkewar</itunes:author>
-        <itunes:explicit>No</itunes:explicit>
-        <itunes:episodeType>Full</itunes:episodeType>
-        <itunes:episode>27</itunes:episode>
-        <itunes:keywords></itunes:keywords>
-        <itunes:season>1</itunes:season>
-        <podcast:episode>27</podcast:episode>
-    </item>
-    <item>
-        <title>1institutetext:</title>
-        <guid isPermaLink="false">https://nerkewar.github.io/papers-read-aloud/episodes/2404.13706</guid>
-        <description>
-        <![CDATA[<p>Motivated by ethical and legal concerns, the scientific community is actively developing methods to limit the misuse of Text-to-Image diffusion models for reproducing copyrighted, violent, explicit, or personal information in the generated images. Simultaneously, researchers put these newly developed safety measures to the test by assuming the role of an adversary to find vulnerabilities and backdoors in them. We use compositional property of diffusion models, which allows to leverage multiple prompts in a single image generation. This property allows us to combine other concepts, that should not have been affected by the inhibition, to reconstruct the vector, responsible for target concept generation, even though the direct computation of this vector is no longer accessible. We provide theoretical and empirical evidence why the proposed attacks are possible and discuss the implications of these findings for safe model deployment. We argue that it is essential to consider all possible approaches to image generation with diffusion models that can be employed by an adversary. Our work opens up the discussion about the implications of concept arithmetics and compositional inference for safety mechanisms in diffusion models.</p>]]>
-        </description>
-        <pubDate>Thu, 10 Oct 2024 12:07:09 +0000</pubDate>
-        <enclosure
-        url="https://nerkewar.github.io/papers-read-aloud/episodes/2404.13706/audio.mp3" type="audio/mpeg" />
-        <itunes:author>nerkewar</itunes:author>
-        <itunes:explicit>No</itunes:explicit>
-        <itunes:episodeType>Full</itunes:episodeType>
-        <itunes:episode>26</itunes:episode>
         <itunes:keywords></itunes:keywords>
         <itunes:season>1</itunes:season>
         <podcast:episode>26</podcast:episode>
