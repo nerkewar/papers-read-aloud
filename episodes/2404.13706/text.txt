@@ -1,0 +1,191 @@
+1institutetext: 
+Boston University.
+11email: {vpetsiuk,saenko}@bu.edu.
+
+Concept Arithmetics for Circumventing Concept Inhibition in Diffusion Models.
+
+Abstract.
+
+Motivated by ethical and legal concerns, the scientific community is actively developing methods to limit the misuse of Text-to-Image diffusion models for reproducing copyrighted, violent, explicit, or personal information in the generated images. Simultaneously, researchers put these newly developed safety measures to the test by assuming the role of an adversary to find vulnerabilities and backdoors in them. We use compositional property of diffusion models, which allows to leverage multiple prompts in a single image generation. This property allows us to combine other concepts, that should not have been affected by the inhibition, to reconstruct the vector, responsible for target concept generation, even though the direct computation of this vector is no longer accessible. We provide theoretical and empirical evidence why the proposed attacks are possible and discuss the implications of these findings for safe model deployment. We argue that it is essential to consider all possible approaches to image generation with diffusion models that can be employed by an adversary. Our work opens up the discussion about the implications of concept arithmetics and compositional inference for safety mechanisms in diffusion models.
+
+Content Advisory: This paper contains discussions and model-generated content that may be considered offensive. Reader discretion is advised.
+
+Project page: https://cs-people.bu.edu/vpetsiuk/arc.
+
+1. Introduction.
+
+Recent advances in Text-to-Image (T2I) generation  have led to the rapid growth of applications enabled by the models, including many commercial projects as well as creative applications by the general public. On the other hand, they can also be used for generating deep fakes, hateful or inappropriate images , copyrighted materials or artistic styles . Trained on vast amounts of data scraped from the web, these models also learn to reproduce the biases and stereotypes present in the data . While some legal  and ethical  questions concerning image generation models remain unsolved, the scientific community is developing methods to limit their malicious utility, while keeping them open and accessible to the community.
+
+Some recently proposed approaches, that we refer to as Concept Inhibition methods modify the Diffusion Model (DM) to “forget” some specified information. Given a target concept, the weights of the model are fine-tuned or otherwise edited so that the model is no longer capable of generating images that contain that concept. Unlike the post-hoc filtering methods (safety checkers) that can be easily circumvented by an adversary , these methods are designed to prevent the generation of undesired content in the first place. One of the motivating factors of this line of works is to limit the inappropriate content generation by the models, while keeping them open-source and accessible to the community. Based on the evaluation results of these works, which demonstrate a significantly reduced reproduction rate of the target concept in the generated images, the authors conclude that the model is no longer capable of generating the target concept and that such “erasure cannot be easily circumvented, even by users who have access to the parameters”. However, we demonstrate, theoretically and experimentally, that the models inhibited with existing methods still contain the infromation for reproducing the erased concept (Figure 1). This information can be easily exploited by an adversary with access to compositional inference of the model, which is a weaker requirement than full access to the model weights.
+
+Recent works explored, how a semantic concept can be constructed by specifying and composing more than one prompt in one generation . We consider the implications of this compositional property in the context of concept inhibition. By using concept arithmetics, which is not available in single prompt inference, we use multiple input points to reconstruct the erased concept. Unlike prompt optimization attacks  that leverage insufficiently generalized inhibition near the target concept (similar to adversarial attacks), our attacks leverage the compositional property and use the input points further away from the target. These points are sufficiently inhibited according to the design of the inhibition methods but still contain the information about the erased concept. Since the defense against these attacks has to take compositionality into consideration, our attacks cannot be mitigated by the methods that exclusively address the adversarial robustness.
+
+Intuitive and straightfoward to implement, our proposed ARC (ARithmetics in Concept space) attacks would be readily available to an adversary, which makes them a serious threat against the presumably safe models. The attacks require black-box access to compositional inference of the model. This is the case for multi-prompting APIs which are becoming increasingly popular ([1] https://docs.midjourney.com/docs/multi-prompts, https://platform.stability.ai/docs/features/multi-prompting ), or for an adversary with full access to the model weights and code, for example if the model is open-source.
+
+We present both theoretical grounding and empirical evidence of the attack effectiveness, and we quantitatively show that the attacks significantly increase the reproduction rates of the erased concepts. Compositional inference attacks are applicable to all safety mechanisms that modify the model locally (near a given input point). This simple alteration in the inference process may break the assumptions made by the defense mechanisms developers, or exploit the vulnerabilities considered to be minor to a larger extent.
+
+To summarize, our main contributions are as follows:
+
+1. 1. We are the first work to consider compositional property of Diffusion Models in the context of concept inhibition and its circumvention.
+
+
+2. 2. We design novel attacks that exploit the limitations of concept inhibition methods, based on the theoretical framework we develop.
+
+
+3. 3. We test our attacks against models inhibited with a variety of inhibtion methods and show that the attacks significantly increase the reproduction rates of the erased concepts.
+
+Our work is not intended to discourage the use of the presented inhibition methods but to determine the strengths and limitations of different approaches, further define the notion of concept inhibtion, and ultimately advance the research on safe and responsible Text-to-Image generation. The proposed attacks can be used to test the robustness of the inhibition methods and to guide the choice of the inhibition method and its parameters. Our intentions do not include enabling the generation of inappropriate content, however, by the nature of red-team work, presented approach can be used for malicious purposes.
+
+2. Related Work.
+
+2.1 Diffusion Models.
+
+Diffusion Model is a type of generative model that employs a gradual denoising process to learn the distribution p​(x)𝑝𝑥p(x) of the data . The diffusion model generates an image x0subscript𝑥0x{0} in T𝑇T steps by iteratively predicting and removing noise starting from the initial Gaussian noise sample xTsubscript𝑥𝑇x{T}. Noise prediction is learned to optimize the score function ∇xlog⁡p​(x)subscript∇𝑥𝑝𝑥\nabla{x}\log p(x).
+
+Classifier guidance  enables generation conditioned on some input c𝑐c by adding a conditional score term gamma ​∇xlog⁡p​(c∣x)𝛾subscript∇𝑥𝑝conditional𝑐𝑥\gamma\nabla{x}\log p(c\mid x) with guidance scale gamma &gt;1𝛾1\gamma&gt;1 controlling the influence of the conditional signal. p​(c∣x)𝑝conditional𝑐𝑥p(c\mid x) can be an external image classifier model predicting the class label c𝑐c. Classifier-free guidance  proposes to train the model jointly on conditional and unconditional denoising to obtain a single neural network that models both unconditional p​(x)𝑝𝑥p(x) and conditional p​(c∣x)𝑝conditional𝑐𝑥p(c\mid x) distributions. In this case, the total guidance can be expressed as.
+
+or in terms of the learned U-Net model ϵtheta subscriptitalic-ϵ𝜃\epsilon{\theta} that predicts the noise to be removed from xtsubscript𝑥𝑡x{t} at timestep t𝑡t and conditioned on prompt c1subscript𝑐1c{1} ([2] Throughout, we imply that the string is embedded using CLIP  textual encoder before being passed to ϵitalic-ϵ\epsilon.):
+
+Latent Diffusion Models  incorporate encoder E𝐸E and decoder D𝐷D before and after the diffusion process, respectively. Moving the gradual denoising from image pixel space to lower dimensional encoder-decoder latent space improves convergence and running speeds.
+
+2.2 Concept Arithmetics in Diffusion Models.
+
+A series of recent works  has demonstrated that adding the guidance terms for multiple prompts during the diffusion process results in an image that corresponds to multiple prompts simultaneously. With the additional prompt guidance incorporated in Equation 1, the updated noise prediction equation becomes.
+
+where gamma jsubscript𝛾𝑗\gamma{j} (typically the same for all concepts) is the guidance scale for each additional prompt/concept cjsubscript𝑐𝑗c{j}, and dj in {−1,1}subscript𝑑𝑗11d{j}\in\{-1,1\} determines the direction of guidance — negative or positive. For example, the generation conditioned on the prompt “a picture of a car” changes to a sports car or a bulkier-looking car by introducing concept “fast” with positive d1=1subscript𝑑11d{1}=1 or negative d1=−1subscript𝑑11d{1}=-1 guidance respectively .
+
+We refer to the generation with N&gt;1𝑁1N&gt;1 as Compositional Inference (CI) as opposed to Standard Inference (SI) that follows Equation 1 (N=1,d1=1formulae-sequence𝑁1subscript𝑑11N=1,d{1}=1).
+
+Negative guidance (dj=−1subscript𝑑𝑗1d{j}=-1) minimizes the probability of the concept cjsubscript𝑐𝑗c{j} in the generated image, and can be veiwed as a logical negation of the concept . This is used as an inference-time inhibition technique in Safe Latent Diffusion (SLD)  where a hand-crafted safety phrase that describes undesired content (for example, “violence, nudity,…”) is applied with negative guidance.
+
+2.3 Concept inhibition in Diffusion Models.
+
+The actively developing line of research on unlearning concepts in the DM includes Erasing concepts from SD (ESD) , Ablating Concepts (AC) , Unified Concept Editing (UCE) , Selective Amnesia (SA) .
+
+Each of these methods defines an optimization task to modify the weights of the generative model to prevent the generation of the target concept. Given the target concept, a text string ctsubscript𝑐𝑡c{t}, the optimization objective is designed to compromise model’s outputs or intermediate computations in the area of latent space defined by ctsubscript𝑐𝑡c{t}. This is accomplished in a supervised manner by providing the “ground-truth” outputs that the model should produce instead. The ground-truth outputs are constructed by using the corresponding outputs for some alternative anchor concept casubscript𝑐𝑎c{a} (AC, UCE, SA), or by negating the conditional guidance of ctsubscript𝑐𝑡c{t} itself (ESD). ESD, AC, SA solve the optimization task by fine-tuning the model weights using gradient descent, while UCE edits the weights directly using a closed-form solution. ESD, UCE, AC optimize the outputs of the conditional guidance part of the model ϵtheta ​(xt,p,t)subscriptitalic-ϵ𝜃subscript𝑥𝑡𝑝𝑡\epsilon{\theta}(x{t},p,t), while SA operates on image level.
+
+Additional optimization configurations include selection of the weight groups to be updated; choice of concepts to preserve (by adding regularization terms to the optimization objective); the number of fine-tuning iterations.
+
+2.4 Security mechanisms in Diffusion Models.
+
+Security mechanisms in DM are aimed to address some high-risk aspects of the model’s operation, such as privacy, legal, or ethical concerns. Watermarking to validate the origin of the generated images  or the diffusion model itself ; shielding personal images and artworks against diffusion-based editing  or style mimicry ; and unlearning a given concept (Section 2.3) are some of the recently developed security mechanisms. Assuming the role of an adversary to search for exploits in a system with the goal of improving its safety is a critical part of the development process in cybersecurity, referred to as red teaming.
+
+Red team research recently performed in the context of diffusion models includes bypassing the SD safety checker , evading watermark detection , or poisoning the data to attack the model trained on it .
+
+Most relevant to our work, are the recently proposed methods to circumvent inhibition in diffusion models via prompt optimization . These works propose an optimization task in the token space (for example using a genetic algorithm ) to make a given prompt problematic (one that results in reproduction of the inhibited concept). To generate problematic prompts, requires white-box access to the uninhibited diffusion model, requires white-box access to the encoder. These requirements significantly limit the practical applicability of the methods. These works modify the form of the prompt without modifying its content (for example modifying prompt “scary image” to “q scary image” ). They aim to exploit imperfect generalization of inhibition in the vicinity of the target concept, that is low adversarial robustness.
+
+We, on the other hand, focus on circumventing the inhibition by intentionally modifying the content of the prompt to get inputs, where the effect of inhibition is lower due to the presence of another concept. We use multiple inputs distanced away from the target concept to reproduce the target concept in their composition. Our approach requires no optimization, and no access to neither inhibited or uninhibited models’ weights. It operates using compositional inference which is sometimes provided as a black-box service.
+
+3. Compositional Inference Attacks.
+
+The goal of our work is finding inputs that can be used in compositional inference to reproduce the target concept using the inhibited model, where the direct computation of the target guidance has been modified. We denote conditional guidance for concept cjsubscript𝑐𝑗c{j} as g​(xt,cj,t)𝑔subscript𝑥𝑡subscript𝑐𝑗𝑡g(x{t},c{j},t), and for the ease of notation we omit xt,tsubscript𝑥𝑡𝑡x{t},t in the arguments (we set guidance scale for all concepts to be equal, gamma j=gamma subscript𝛾𝑗𝛾\gamma{j}=\gamma):
+
+Compositional property of DM is equivalent to linearity of g𝑔g in semantic space (via CLIP embeddings), that is,
+g​(sports car)=g​(car)+g​(fast).𝑔sports car𝑔car𝑔fastg(\textsc{sports car})=g(\textsc{car})+g(\textsc{fast}).
+Optimization task in the inhibition works, analyzed in this paper, is constrained only on the target concept ctsubscript𝑐𝑡c{t} (or the target and a few neighboring concepts). As a consequence, this means that when inhibiting the concept ‘sports car’ it is assumed that the guindances for other concepts, such as g​(car)𝑔carg(\textsc{car}) and g​(fast)𝑔fastg(\textsc{fast}) are appropriately modified in an implicit way (through latent space). Our red team attacks are designed to challenge this assumption.
+
+First, we provide the principles and intuition explaining the design and effectiveness of the proposed attacks in Section 3.1. We design the general attack framework in Section 3.2 and, finally, provide the attack implementations used in our experiments in Section 3.3. 3.1 Rationale behind the attacks.
+
+Conditional guidance g∗=gtheta ∗superscript𝑔subscriptsuperscript𝑔𝜃g^{*}=g^{*}{\theta} of the uninhibited model is a function, parameterized by weights theta 𝜃\theta, that maps a CLIP embedding of a string describing some concept c𝑐c to a vector in the latent space of the diffusion model. It is observed, that this function is linear for some points in semantic space:
+g∗​(c1±c2)=g∗​(c1)±g∗​(c2),superscript𝑔plus-or-minussubscript𝑐1subscript𝑐2plus-or-minussuperscript𝑔subscript𝑐1superscript𝑔subscript𝑐2g^{*}(c{1}\pm c{2})=g^{*}(c{1})\pm g^{*}(c{2}),
+where ±plus-or-minus\pm denotes plus or minus operation in the semantic space.
+
+To obtain the inhibited model g=gtheta ~𝑔subscript𝑔~𝜃g=g{\tilde{\theta}}, prior works propose to optimize the weights theta 𝜃\theta to match the output of the function at point ctsubscript𝑐𝑡c{t} to a given value y0subscript𝑦0y{0} by minimizing some loss function ℒℒ\mathcal{L}:
+
+We define the task of circumventing concept inhibition as computing g∗​(ct)superscript𝑔subscript𝑐𝑡g^{*}(c{t}) using only the inhibited model g𝑔g.
+
+We express inhibited function g​(c)𝑔𝑐g(c) as a linear combination of uninhibited g∗​(c)superscript𝑔𝑐g^{*}(c) and y0subscript𝑦0y{0}:
+
+where scalar lambda ​(c)𝜆𝑐\lambda(c) (which can be calculated by solving the equation for it) denotes the degree of modification (inhibition) at point c𝑐c. The degree of modification at every point is determined by the choice of the loss function and optimization parameters. The goal of the ideal inhibition is to achieve lambda ​(ct)=1𝜆subscript𝑐𝑡1\lambda(c{t})=1, and lambda ​(c)=0𝜆𝑐0\lambda(c)=0 for all c𝑐c “independent” of ctsubscript𝑐𝑡c{t} (otherwise, guidance for c𝑐c is affected by y0subscript𝑦0y{0}).
+
+Hypothesis H1. Degree of modification lambda ​(c)𝜆𝑐\lambda(c) at point c𝑐c decreases as its distance from ctsubscript𝑐𝑡c{t} increases, and can be modeled as an exponential decay function:
+lambda ​(c)=exp⁡(−|c−ct|/sigma 2),𝜆𝑐𝑐subscript𝑐𝑡superscript𝜎2\lambda(c)=\exp(-|c-c{t}|/\sigma^{2}), where sigma 𝜎\sigma is a parameter that determines the rate of decay.
+
+This hypothesis is based on the fact that the optimization task in Equation 3 is designed to minimize the loss function only at concept ctsubscript𝑐𝑡c{t}. The modification is localized (unlike, for example, rotation of the whole space) and centered at ctsubscript𝑐𝑡c{t}, therefore the degree of modification is expected to decrease as the distance from ctsubscript𝑐𝑡c{t} increases. We develop the rationale for the attacks using the hypothesis. We show that as the distance between some arbitrary concept cdsubscript𝑐𝑑c{d} and inhibited concept ctsubscript𝑐𝑡c{t} increases, the linear combination(s) of g𝑔g can be used to compute a vector colinear with g∗​(ct)superscript𝑔subscript𝑐𝑡g^{*}(c{t}). Proofs can be found in the supplementary.
+Proposition P1. If |cd−ct| -> +∞ -> subscript𝑐𝑑subscript𝑐𝑡|c{d}-c{t}|\to+\infty and g∗​(ct±cd)=g∗​(ct)±g∗​(cd)superscript𝑔plus-or-minussubscript𝑐𝑡subscript𝑐𝑑plus-or-minussuperscript𝑔subscript𝑐𝑡superscript𝑔subscript𝑐𝑑g^{*}(c{t}\pm c{d})=g^{*}(c{t})\pm g^{*}(c{d}), then.
+
+where -> -> \to denotes convergence in the limit.
+For a sufficiently distant concept cdsubscript𝑐𝑑c{d}, the left-hand side, which uses only the inhibited model, approaches the guidance vector g∗​(ct)superscript𝑔subscript𝑐𝑡g^{*}(c{t}) of the original model.
+Proposition P2. If |cdi−ct| -> +∞ -> subscriptsuperscript𝑐𝑖𝑑subscript𝑐𝑡|c^{i}{d}-c{t}|\to+\infty, g∗​(ct±cdi)=g∗​(ct)±g∗​(cdi)superscript𝑔plus-or-minussubscript𝑐𝑡subscriptsuperscript𝑐𝑖𝑑plus-or-minussuperscript𝑔subscript𝑐𝑡superscript𝑔subscriptsuperscript𝑐𝑖𝑑g^{*}(c{t}\pm c^{i}{d})=g^{*}(c{t})\pm g^{*}(c^{i}{d}) N -> ∞ -> 𝑁N\to\infty, then.
+
+Proposition P3. For any concept cdsubscript𝑐𝑑c{d},
+
+Moving away from ctsubscript𝑐𝑡c{t} by +cdsubscript𝑐𝑑+c{d} or −cdsubscript𝑐𝑑-c{d} results in lesser degree of modification.
+
+Proposition P4. If y0=g∗​(ca)subscript𝑦0superscript𝑔subscript𝑐𝑎y{0}=g^{*}(c{a}) and.
+lambda ​(ca)=0𝜆subscript𝑐𝑎0\lambda(c{a})=0, then.
+
+That is, if an anchor concept casubscript𝑐𝑎c{a} is used, and the guidance at casubscript𝑐𝑎c{a} is not affected, then the guidance vectors g​(ct)−g​(ca)𝑔subscript𝑐𝑡𝑔subscript𝑐𝑎g(c{t})-g(c{a}) and g∗​(ct)−g∗​(ca)superscript𝑔subscript𝑐𝑡superscript𝑔subscript𝑐𝑎g^{*}(c{t})-g^{*}(c{a}) are colinear.
+
+3.2 Attacked inference framework.
+
+Using the formalization of compositional property and inhibition objectives described in Section 3.1, we design the inputs that aim to circumvent concept inhibition. Table 1 lists the inputs for g𝑔g that result in the guidance vectors colinear with g∗​(ct)superscript𝑔subscript𝑐𝑡g^{*}(c{t}) or a sum containing it. We refer to the attacks that bypass concept inhibition via using arithmetics in concept space and compositional inference as ARC attacks.
+
+Additionally, the attacks can be stacked to produce stronger guidance in the direction of ctsubscript𝑐𝑡c{t}. This is demonstrated for attacks A1 and A2 in Proposition P2, similar logic applies to stacking different attacks.
+
+To preserve the control over the image generation, we combine the attack inputs with the original user-defined prompt. Thus, performing attack A1 to generate an image given prompt c1subscript𝑐1c{1} means that instead of using Standard Inference to compute.
+
+we use Compositional Inference to compute.
+
+For example, for a target concept ctsubscript𝑐𝑡c{t}=“zebra”, prompt c1subscript𝑐1c{1}=“zebra standing in the field”, if we implement A1 with cdsubscript𝑐𝑑c{d}=“cake” and ct+cdsubscript𝑐𝑡subscript𝑐𝑑c{t}+c{d}=“cake in the shape of zebra” the inference is.
+
+Figure 2 illustrates this example.
+
+Our approach does not involve any optimization procedures. The setup required to perform the attacks consists exclusively of having access to the compositional inference of the model. If such access is given as a black-box API, no coding is required to perform the attacks. If the access is given as model weights, one can use existing implementations of compositional inference to perform the attacks (minimal coding might be required). The only computational overhead of our attacks consists of additional computations of g𝑔g (forward pass of the U-Net) during inference for each additional concept used.
+
+3.3 Attack implementations.
+
+We test the proposed attacks on two of the types of inhibition considered in the literature: object categories and nudity. Table 2 lists the attacks considered in our experiments.
+
+O1, O2, N1. Proposition P1 implies that for concepts cdsubscript𝑐𝑑c{d} sufficiently distant from ctsubscript𝑐𝑡c{t} such that linearity holds, the guidance g​(ct+cd)−g​(cd)𝑔subscript𝑐𝑡subscript𝑐𝑑𝑔subscript𝑐𝑑g(c{t}+c{d})-g(c{d}) approaches g∗​(ct)superscript𝑔subscript𝑐𝑡g^{*}(c{t}). We manually define concepts cdsubscript𝑐𝑑c{d} (‘cake’), and its combination ++ with another concept ctsubscript𝑐𝑡c{t} (ct+limit-fromsubscript𝑐𝑡c{t}+‘cake’=‘cake in the shape of ctsubscript𝑐𝑡c{t}’). We try to keep the combination ct+cdsubscript𝑐𝑡subscript𝑐𝑑c{t}+c{d} as close to cdsubscript𝑐𝑑c{d} as possible to further minimize the degree of modification since closer to cdsubscript𝑐𝑑c{d} means further away from ctsubscript𝑐𝑡c{t}. This is why we use ‘cake in the shape of ctsubscript𝑐𝑡c{t}’ instead of ‘cake and ctsubscript𝑐𝑡c{t}’. This principle is used to design attacks O1 (cd=cakesubscript𝑐𝑑cakec{d}=\textsc{cake}) and N1 (cd=text, writtensubscript𝑐𝑑text, writtenc{d}=\textsc{text, written}). Here, concept cdsubscript𝑐𝑑c{d} can be viewed as a detour concept. Attack O2 extends O1 following the intuition provided by P2: stacking multiple signals produces stronger guidance in the direction of ctsubscript𝑐𝑡c{t}. O2 uses three detour concepts instead of one.
+
+N2, N3.
+In O1, we subtract the concept cdsubscript𝑐𝑑c{d}=‘cake’ in order to keep the generation of images unbiased with rescpect to the concept cdsubscript𝑐𝑑c{d}. Otherwise, the generated images would likely contain cdsubscript𝑐𝑑c{d} (Figure 2, middle column) and in some cases cdsubscript𝑐𝑑c{d} can overpower ctsubscript𝑐𝑡c{t} (image contains a cake but no target concept). However, even though the inference that uses this guidance is biased towards cdsubscript𝑐𝑑c{d}, it still contains the guidance in the direction of the target concept and has lesser degree of modification (implication of P3). The subtraction of g​(cd)𝑔subscript𝑐𝑑g(c{d}) can be omitted, when biased generation can be considered a successful inhibition circumvention. In the case of ctsubscript𝑐𝑡c{t}=‘fruits’, N2 is equivalent to computing the guidance for a superset of concepts ct+cdsubscript𝑐𝑡subscript𝑐𝑑c{t}+c{d}=‘fruits and vegetables’, and N3 is equivalent to computing the guidance for a subset of concepts ct−cdsubscript𝑐𝑡subscript𝑐𝑑c{t}-c{d}=‘apple’ in P4. Note, that cdsubscript𝑐𝑑c{d} is not explicitly defined in either of the attacks, we only define ct±cdplus-or-minussubscript𝑐𝑡subscript𝑐𝑑c{t}\pm c{d}. These attacks can also be viewed as the reversed SLD  approach with a general unsafe concept prompt (N2) or a more focused unsafe concept targeting a specific NudeNet category (N3).
+
+O3. Attack O3 is based on P4 which implies that the guidance g​(ct)−g​(ca)𝑔subscript𝑐𝑡𝑔subscript𝑐𝑎g(c{t})-g(c{a}) remains colinear with g∗​(ct)−g∗​(ca)superscript𝑔subscript𝑐𝑡superscript𝑔subscript𝑐𝑎g^{*}(c{t})-g^{*}(c{a}) even after the inhibition. Running compositional inference with this guidance should maximize probability of target concept being present in the image and minimize the probability for the anchor concept. This prevents this attack from reproducing target and anchor concepts simultaneously (for example, zebra and horse in one image). This limitation is neglible if anchor is a concept similar to target, but becomes critical when the anchor concept is a superset of the target concept (for example, “robot” is superset of “R2D2”). We recommend using a superset anchor concept for better resistance to this attack. Also note, that if ca=∅subscript𝑐𝑎c{a}=\varnothing (empty string) is used in the inhibition, O3 reduces to +g​(ct)𝑔subscript𝑐𝑡+g(c{t}) since g​(∅)=g∗​(∅)=0𝑔superscript𝑔0g(\varnothing)=g^{*}(\varnothing)=0. We conclude this section by noting that manual selection of prompts is a common practice in the modern works in inhibition and semantic manipulation of diffusion models. Similar to how SLD does not optimize the safety prompt, or inhibition works do not optimize the target or anchor concept prompts, in this work we omit the analysis of optimal choice of cdsubscript𝑐𝑑c{d}. While different cdsubscript𝑐𝑑c{d} can yield different results, our primary goal is to demonstrate that such cdsubscript𝑐𝑑c{d} exist and can be used to reproduce the target concept. The fact that such detour concepts can be easily picked by hand is an advantage of our approach, making the attacks interpretable and extremely easy to implement by an adversary. Additionally, we focus on universally applicable attacks, such that the same attack (for example O1) would work for multiple concepts (for example zebra, golf ball, and so on). In practice, instead of using a generic detour concept (‘cake’, ‘text’), the attacker could come up with a target-specific detour concepts (for example “Zebstrika”-“Pokemon” for “zebra”) that might work better for a given target.
+
+4. Experiments.
+
+We quantitatively evaluate the proposed attack implementations on the models that were inhibited for nudity in Section 4.1; object categories and recognizable figures in Section 4.2. Qualitative results can be seen in Figures 1, 2, 5. We adopt Stable Diffusion 1.41.41.4 as the base model for our experiments, as this model is used by the inhibition works. In all the experiments, for each prompt, we generate images using 5 random seeds for each generation mode. Generation modes consist of the Standard Inference using the original SD model, Standard Inference using the inhibited model, and Compositional Inference for each of our attacks (O1-3 for objects, N1-3 for nudity). As described in Section 3.1, each attack defines the additional concepts used in the generation.
+
+The generation parameters (noise schedule, guidance scale, and so on) are selected in accordance with each of the inhibition works. Since (UCE and ESD), (AC) and (SA) use different generation parameters, the baselines are also slightly different for the three groups.
+
+4.1 Circumventing Nudity Inhibition.
+
+First, we attack the inhibition of the “nudity” concept.
+
+Models. We use the model weights released by the authors of ESD  and Selective Amnesia ; for UCE , we inhibit the model for the prompt “nudity” using the official implementation. We do not evaluate SLD  since both our attacks and SLD require access to the compositional inference, which means SLD inhibition can be trivially disabled or negated in this scenario (achieving baseline level). We do not evaluate AC  in this experiment since it has no delineated protocol for inhibiting nudity.
+
+Measure.
+A pre-trained NudeNet  model is used to detect nudity in the generated images, and the number of images that contain a given nudity category is used as the final metric.
+
+Prompts. We use I2P dataset  — a collection of prompts that invoke nudity, violence or other inappropriate content in the generated images. In order to limit the experiments to nudity, we follow and filter a total of 959595 prompts that have nudity percentage value greater than 50%.
+
+Results. We report the number of generated images that contain NudeNet categories in each generation mode for every inhibition method in Figure 3. Our results show that while inhibtition significantly reduces the rate of nudity in the images generated using standard inference, the inhibition does not entirely eradicate the concept from the model. The modified models can still be used to generate images with undesired content for each of the three considered nudity categories. In some cases, the inhibited models can generate images with nudity even more reliably than the unmodified baseline model.
+
+4.2 Circumventing Object Inhibition.
+
+Next, we evaluate the attacks against the inhibition of object categories and recognizable characters. Detailed information can be found in the supplementary.
+
+Concepts.
+We extend Imagenette  set of categories (casstte player, chain saw, church, English springer spaniel, French horn, garbage truck, gas pump, golf ball, parachute, tench) used in the evaluation of  with additional ImageNet categories (academic gown, paper towel, and zebra), as well as R2-D2 and Snoopy characters used in .
+
+Models. We obtain the inhibited models by using the official code released by the authors of AC , ESD , and UCE . Fine-tuning in AC and ESD-u is performed using the suggested learning rates and number of iterations, 100 and 1000 respectively. We additionally evaluate the AC model fine-tuned for 200 iterations in order to test the attacks against stronger inhibition.
+
+Measure.
+To quantitatively evaluate concept inhibition in a diffusion model, inhibition works propose to use the original and the inhibited models to generate images for a set of prompts and then measure how much of the target concept is “present” in the two sets of images. A smaller presence value of the target concept in the generated images indicates better concept inhibition. The same methodology and the same metrics can be used to measure the efficiency of the attacks (although with flipped optimal direction).
+
+Following AC , we use CLIP Score  to measure the presence of the target concept in the generated images. Given a distribution of CLIP Scores computed for a set of prompts, AC uses the mean of this distribution as the metric of concept reproduction in the generated images. Despite having the same mean, the sets of scores [0.5,0.5]0.50.5[0.5,0.5] and [0.1,0.9]0.10.9[0.1,0.9] can correspond to situations when the concept is present in neither images (but the images have some correlation, for example similar textures) or distinctly present in one of them. We propose a metric that considers a threshold on the whole distribution of the CLIP Scores as a more detailed measure of the concept presence in the generated images. We use baseline model scores percentiles as thresholds, to normalize for the differences in the CLIP Score values for different concepts in the original model.
+Normalized Reproduction rate at percentilep𝑝p (NR@p) is computed as the percent of images such that CLIP Score between the image and target concept string is higher than the p𝑝p-th percentile of the baseline scores. By definition, NR rate for the baseline scores approaches 1−p1𝑝1-p for every value of p𝑝p.
+
+Prompts. Following , we use Chat-GPT API  for prompt generation. We generate 202020 prompts for each concept.
+
+Results. We report the target concept NR rates for regular and attacked generations using models modified with the three inhibition techniques: AC, ESD-u, and UCE, averaged over all concepts in Figure 4. We observe that for every percentile, our attacks result in a significantly higher a higher concept reproduction rate, that is fraction of images with high CLIP Score values. This can be especially critical at high percentile values corresponding to the images that have target concept present in a more pronounced way.
+
+We see, that our attacks significantly overcome the inhibition when a suggested default value of 100 iterations is used in AC (AC-100). When a stronger inhibition is used (AC-200), our attacks are still successful, but to a lesser extent. ESD-u and UCE have higher inhibition rates but our attacks still increase the reproduction rates manyfold, sometimes generating multiple images where 0 images were generated using the standard inference. It is worth noting, that higher inhibition of ESD-u and UCE, seemingly, comes at the cost of reduced quality and variation in the generated images for other concepts.
+
+We demonstrate reproduction rates for an individual case of inhibiting “zebra” with AC-100 with an anchor prompt “horse” and the attacks in Figure 5. 5. Discussion.
+
+A straightforward conclusion from the presented work is that the current methods for inhibiting concepts in Diffusion Models are not robust to compositional inference attacks, and inhibited models should still be guard-railed using post-hoc techniques in high-risk scenarios. In order to defend against compositional inference attacks, one has to break the hypothesis H1, that is, modify the outputs globally (for all concepts), rather than locally (in the vicinity of the target).
+
+A more general, and more important, contribution consists of building a framework for understanding how linearity of conditional guidance can have an impact on image generation process. This understanding is crucial when developing safety mechanisms in diffusion models. For example, if instead of a concept inhibition, a watermakring method is developed such that its optimization task follows Equation 3, and H1 holds (the changes in conditional guidance are local), then such watermarking method would be vulnerable to the compositional inference attacks. Our work opens up the floor for further investigation in this direction, and we believe more research is necessary on the concept space and linearity of conditional guidance to ensure safe and robust editing of diffusion models.
